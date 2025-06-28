@@ -1,0 +1,745 @@
+swagger: "2.0"
+info:
+  description: The Accounts and Balances API allow the corporate user to fetch
+    information their corporate accounts. The request to fetch the information
+    is based on the users access to the relevant accounts, as well as the
+    transfer types.
+  version: 1.0.8
+  title: Accounts and Balances
+  x-finastra-category: Corporate & Commercial Banking
+  x-finastra-subcategory: Corporate Channels
+  x-finastra-short-description: Retrieve the list of an authenticated user's
+    corporate accounts and also retrieve the individual account details,
+    balances and statement.
+  x-finastra-tags:
+    - Fusion Corporate Channels
+    - Fusion Global PAYplus
+    - Fusion Payments To Go
+    - Account
+  x-finastra-channel-type: DIGITAL
+  x-finastra-maturity-level: BETA
+  x-finastra-audience: PUBLIC
+  x-finastra-implementability: INTERNAL
+  x-finastra-icon: Icons_3v.svg
+  x-finastra-data-classification:
+    - Restricted
+  x-finastra-commitId: 1bc2abdf0d3f8aa210900e278188e28718f13170
+  contact:
+    name: API Support
+    url: https://community.fusionfabric.cloud/index.html
+host: api.fusionfabric.cloud
+basePath: /corporate/channels/accounts/me/v1
+tags:
+  - name: Accounts
+    description: Retrieve a summary of accounts, balances, details and statements
+      for the authenticated user
+schemes:
+  - https
+securityDefinitions:
+  Oauth2:
+    type: oauth2
+    description: Oauth 2.0 authentication
+    authorizationUrl: https://api.fusionfabric.cloud/login/v1/sandbox/oidc/authorize
+    tokenUrl: https://api.fusionfabric.cloud/login/v1/sandbox/oidc/token
+    flow: accessCode
+    scopes: {}
+security:
+  - Oauth2: []
+paths:
+  /accounts:
+    get:
+      tags:
+        - Accounts
+      summary: Display Accounts list for the authenticated user
+      description: This API returns a list of accounts for the authenticated corporate user.
+      operationId: getAccountsForCustomerUser
+      produces:
+        - application/json
+      parameters:
+        - $ref: "#/parameters/AccountContext"
+        - $ref: "#/parameters/Limit"
+        - $ref: "#/parameters/Offset"
+      responses:
+        "200":
+          description: Successful response
+          schema:
+            $ref: "#/definitions/AccountList"
+        "400":
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+        "404":
+          description: Resource Not Found
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+        "500":
+          description: Internal server error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+        "503":
+          description: Internal server error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+      x-finastra-data-classification:
+        - Restricted
+  /accounts/{accountId}:
+    get:
+      tags:
+        - Accounts
+      summary: Display Account Details
+      description: This API returns the Account Details for a single account.
+      operationId: getAccountDetailsByAccountID
+      produces:
+        - application/json
+      parameters:
+        - $ref: "#/parameters/AccountId"
+      responses:
+        "200":
+          description: successful response
+          schema:
+            $ref: "#/definitions/AccountDetails"
+        "400":
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+        "404":
+          description: Resource Not Found
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+        "500":
+          description: Internal server error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+        "501":
+          description: Not Implemented
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+      x-finastra-data-classification:
+        - Restricted
+  /accounts/{accountId}/statement:
+    get:
+      tags:
+        - Accounts
+      summary: Display Account Statement Details
+      description: This API returns the Account Statement Details for a single account.
+      operationId: getAccountStatementByAccountID
+      produces:
+        - application/json
+      parameters:
+        - $ref: "#/parameters/AccountId"
+        - $ref: "#/parameters/FromDate"
+        - $ref: "#/parameters/ToDate"
+        - $ref: "#/parameters/Limit"
+        - $ref: "#/parameters/Offset"
+      responses:
+        "200":
+          description: successful response
+          schema:
+            $ref: "#/definitions/AccountStatement"
+        "400":
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+        "404":
+          description: Resource Not Found
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+        "500":
+          description: Internal server error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+        "501":
+          description: Not Implemented
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+      x-finastra-data-classification:
+        - Restricted
+  /accounts/balances-by-account-type:
+    get:
+      tags:
+        - Accounts
+      summary: Display Account Balances By Account Type
+      description: This API returns the Account Balances by account types. If
+        equivalent currency is requested, the balances will be converted and
+        displayed in the equivalent currency.
+      operationId: getAccountBalancesByAccountType
+      produces:
+        - application/json
+      parameters:
+        - $ref: "#/parameters/AccountTypeForBalance"
+        - $ref: "#/parameters/EquivalentCurrency"
+        - $ref: "#/parameters/Limit"
+        - $ref: "#/parameters/Offset"
+      responses:
+        "200":
+          description: Successful response
+          schema:
+            $ref: "#/definitions/AccountBalanceByTypeList"
+        "400":
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+        "404":
+          description: Resource Not Found
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+        "500":
+          description: Internal server error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+        "501":
+          description: Not Implemented
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+      x-finastra-data-classification:
+        - Restricted
+  /accounts/{accountId}/balances:
+    get:
+      tags:
+        - Accounts
+      summary: Display Account Balances
+      description: This API returns the Account Balances of a particular account.
+      operationId: getAccountBalancesByAccountID
+      produces:
+        - application/json
+      parameters:
+        - $ref: "#/parameters/AccountId"
+      responses:
+        "200":
+          description: Successful response
+          schema:
+            $ref: "#/definitions/AccountBalance"
+        "400":
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+        "404":
+          description: Resource Not Found
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+        "500":
+          description: Internal server error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+        "501":
+          description: Not Implemented
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+      x-finastra-data-classification:
+        - Restricted
+parameters:
+  AccountContext:
+    name: accountContext
+    in: query
+    description: The Account Context mapped to the user account permission. This can
+      be account statements or account access mapping to product. Ex INT, TPT,
+      ViewAccount. INT refers to Intenal funds transfer. TPT refers to Third
+      Party funds transfer. Dom referes to Domestic funds transfer. MT103 refers
+      to SWIFT international transfers. ViewAccount refers to all accounts
+    enum:
+      - VIEW-ACCOUNT
+      - INTERNAL-TRANSFER
+      - THIRD-PARTY-TRANSFER
+      - DOMESTIC-TRANSFER
+      - MT103
+    required: true
+    type: string
+  AccountId:
+    name: accountId
+    in: path
+    description: Unique Identifier of a bank account.
+    required: true
+    type: string
+    maxLength: 22
+    x-finastra-data-classification:
+      - Restricted
+  Limit:
+    name: limit
+    in: query
+    description: The maximum number of rows that may be returned. This parameter can
+      be thought of as the page size.
+    type: integer
+    format: int32
+    default: 10
+    minimum: 1
+    maximum: 200
+  Offset:
+    in: query
+    name: offset
+    description: Set to offset the results to a particular row count. for eg.,
+      offset=0 will return the records 1 and more.
+    type: integer
+    format: int32
+    default: 0
+    minimum: 0
+    maximum: 999999999999
+  AccountTypeForBalance:
+    in: query
+    name: accountTypeForBalance
+    description: "Defines the account type, like Current Account, Savings Account "
+    type: string
+    enum:
+      - CURRENT
+      - DEPOSIT
+      - SAVINGS
+      - LOAN
+      - TERM-DEPOSIT
+      - CREDIT-CARD
+      - OTHER
+  EquivalentCurrency:
+    name: equivalentCurrency
+    in: query
+    description: Equivalent Currency for Balances. The account balance amounts will
+      be converted to the equivalent amounts in that particular currency
+    type: string
+    maxLength: 3
+  FromDate:
+    name: fromDate
+    in: query
+    description: Retrieve all transactions from  this date. The date is in ISO 8601
+      dat format yyyy-mm-dd
+    type: string
+    format: date
+    required: true
+  ToDate:
+    name: toDate
+    in: query
+    description: Retrieve all transactions until  this date. The date is in ISO 8601
+      date format yyyy-mm-dd
+    type: string
+    format: date
+    required: true
+definitions:
+  AccountType:
+    type: string
+    description: Defines the account type, like Current, Savings
+    title: Account Type
+    enum:
+      - CURRENT
+      - DEPOSIT
+      - SAVINGS
+      - LOAN
+      - TERM-DEPOSIT
+      - CREDIT-CARD
+      - OTHER
+  AccountFormat:
+    type: string
+    description: Format for e.g. BBAN
+    title: Account Format
+    enum:
+      - BBAN
+      - IBAN
+      - UPIC
+      - DMST
+      - OTHER
+  Account:
+    type: object
+    description: Defines the Account
+    title: Account
+    properties:
+      id:
+        type: string
+        description: Unique Identifier of bank account
+        example: "456783434"
+        maxLength: 22
+        x-finastra-data-classification:
+          - Restricted
+      number:
+        type: string
+        description: Account number
+        example: DE89 3704 0044 0532 0130 00
+        maxLength: 35
+        x-finastra-data-classification:
+          - Restricted
+      currency:
+        type: string
+        description: Currency code using ISO4217
+        maxLength: 3
+        example: USD
+      accountContext:
+        type: string
+        description: The account context mapped to the user access permission
+        enum:
+          - VIEW-ACCOUNT
+          - INTERNAL-TRANSFER
+          - THIRD-PARTY-TRANSFER
+          - DOMESTIC-TRANSFER
+          - MT103
+      type:
+        $ref: "#/definitions/AccountType"
+  AccountBalanceByTypeList:
+    type: object
+    description: List of Account Balances By Type
+    title: Account Balance by Account Type List
+    properties:
+      items:
+        description: List of Account Balances By Type
+        type: array
+        items:
+          $ref: "#/definitions/AccountBalanceByType"
+      _meta:
+        $ref: "#/definitions/_Meta"
+  AccountBalanceByType:
+    type: object
+    description: Defines the Account Balances By Type
+    title: Account Balance by Account Type
+    properties:
+      type:
+        $ref: "#/definitions/AccountType"
+      id:
+        type: string
+        description: Unique Account Identifier
+        example: "1234554321"
+        maxLength: 22
+        x-finastra-data-classification:
+          - Restricted
+      ledgerBalance:
+        type: string
+        pattern: -?[0-9]{1,18}(\.[0-9]{1,3})?
+        description: Ledger Balance
+        example: "5877.78"
+      availableBalance:
+        type: string
+        pattern: -?[0-9]{1,18}(\.[0-9]{1,3})?
+        description: Available Balance
+        example: "5877.78"
+      availableBalanceEquivalent:
+        type: string
+        pattern: -?[0-9]{1,18}(\.[0-9]{1,3})?
+        description: Available Balance
+        example: "5877.78"
+      balanceAsOn:
+        type: string
+        format: date-time
+        description: Balance As Of the date.The date is in ISO 8601 date format
+          yyyy-mm-dd. The date is in ISO 8601 date format yyyy-mm-ddThh:mm:ssZ
+      equivalentCurrency:
+        type: string
+        description: Currency code using ISO4217
+        maxLength: 3
+        example: USD
+      currency:
+        type: string
+        description: Currency code using ISO4217
+        maxLength: 3
+        example: USD
+  AccountStatement:
+    type: object
+    description: Defines the List of Account Statement Lines
+    title: Account Statement
+    properties:
+      items:
+        description: List of Account Statement Lines
+        type: array
+        items:
+          $ref: "#/definitions/AccountStatementLine"
+      _meta:
+        $ref: "#/definitions/_Meta"
+  AccountStatementLine:
+    type: object
+    description: Defines the Account Statement Line
+    title: Account Statement Line
+    properties:
+      postingDate:
+        type: string
+        format: date
+        description: The date of posting of the transaction with the bank. The date is
+          in ISO 8601 date format yyyy-mm-dd.
+        example: 2019-03-04
+      valueDate:
+        type: string
+        format: date
+        description: "The value date of the transaction. The date is in ISO 8601 date
+          format yyyy-mm-dd. "
+        example: 2019-03-04
+      currency:
+        type: string
+        description: Currency code using ISO4217
+        maxLength: 3
+        example: USD
+      amount:
+        type: string
+        pattern: -?[0-9]{1,18}(\.[0-9]{1,3})?
+        description: Transaction Amount
+        example: "5877.78"
+      transactionType:
+        type: string
+        description: "credit or debit entry in the account statement. This displays
+          whether a Debit happened or credit for the account transaction "
+        enum:
+          - CREDIT
+          - DEBIT
+      balance:
+        type: string
+        pattern: -?[0-9]{1,18}(\.[0-9]{1,3})?
+        description: " The available Balance after the posting of the transaction."
+        example: "5877.78"
+        maxLength: 18
+      backOfficeReference:
+        type: string
+        description: "The back office reference for a corporate customer across
+          connected back office application. Also referred to as CIF "
+        example: CUST123
+        maxLength: 64
+        x-finastra-data-classification:
+          - Restricted
+      ref1:
+        type: string
+        description: Placeholder for displaying check number for a check transaction in
+          the account statement record.
+        example: "123456"
+        maxLength: 65
+      ref2:
+        type: string
+        description: "Additional placeholder for displaying a reference received from
+          the bank. For ex. Loan reference number in the case of a loan
+          transaction. "
+        example: LN1234567
+        maxLength: 65
+  AccountList:
+    type: object
+    description: Defines the List of Accounts
+    title: Account List
+    properties:
+      items:
+        description: List of Accounts
+        type: array
+        items:
+          $ref: "#/definitions/Account"
+      _meta:
+        $ref: "#/definitions/_Meta"
+  AccountBalance:
+    type: object
+    description: Defines Account Balance
+    title: Account Balance
+    properties:
+      id:
+        type: string
+        description: unique identifier for each account
+        example: "1234567"
+        maxLength: 22
+        x-finastra-data-classification:
+          - Restricted
+      number:
+        type: string
+        description: Account Number
+        example: DE89 3704 0044 0532 0130 00
+        maxLength: 35
+        x-finastra-data-classification:
+          - Restricted
+      type:
+        $ref: "#/definitions/AccountType"
+      ledgerBalance:
+        type: string
+        pattern: -?[0-9]{1,18}(\.[0-9]{1,3})?
+        description: Ledger Balance of the account
+        example: "5877.78"
+      availableBalance:
+        type: string
+        pattern: -?[0-9]{1,18}(\.[0-9]{1,3})?
+        description: Available Balance of the account
+        example: "5477.78"
+      balanceAsOn:
+        type: string
+        format: date-time
+        description: Balance As Of the date and time. The date is in ISO 8601 date
+          format yyyy-mm-ddThh:mm:ssZ
+        example: 2019-05-07T09:39:52Z
+      currency:
+        type: string
+        description: Currency code using ISO4217
+        maxLength: 3
+        example: USD
+  AccountDetails:
+    type: object
+    description: Defines the Account Details
+    title: Account Details
+    properties:
+      id:
+        type: string
+        description: unique identifier for each account
+        example: "1234567"
+        maxLength: 22
+        x-finastra-data-classification:
+          - Restricted
+      number:
+        type: string
+        description: Defines the account number
+        maxLength: 35
+        example: DE89 3704 0044 0532 0130 00
+        x-finastra-data-classification:
+          - Restricted
+      type:
+        $ref: "#/definitions/AccountType"
+      format:
+        $ref: "#/definitions/AccountFormat"
+      currency:
+        type: string
+        description: Currency code using ISO4217
+        maxLength: 3
+        example: USD
+      country:
+        type: string
+        description: ISO2 alpha code
+        maxLength: 2
+        example: US
+      status:
+        type: string
+        description: Status of an acccount like active or inactive. Inactive refers to
+          all other status like dormant, frozen, etc.
+        enum:
+          - ACTIVE
+          - INACTIVE
+      customerReference:
+        type: string
+        description: customer number/reference
+        maxLength: 35
+        example: "3333333333333"
+        x-finastra-data-classification:
+          - Restricted
+      interestRate:
+        type: string
+        description: "Defines the Interest Rate(s) for an account, format: 0.00"
+        example: "20.54"
+        pattern: -?[0-9]{1,3}(\.[0-9]{1,2})?
+      debitInterestRate:
+        type: string
+        description: "Defines the Debit Interest rate for a loan account, format: 0.00"
+        example: "20.54"
+        pattern: -?[0-9]{1,3}(\.[0-9]{1,2})?
+      creditInterestRate:
+        type: string
+        description: "Defines the Debit Interest rate for a term deposit account,
+          format: 0.00"
+        example: "20.54"
+        pattern: -?[0-9]{1,3}(\.[0-9]{1,2})?
+      principalAmount:
+        type: string
+        pattern: -?[0-9]{1,18}(\.[0-9]{1,3})?
+        description: Principal Amount for a Term Deposit and Loan Accounts
+        example: "5877.78"
+      maturityAmount:
+        type: string
+        pattern: -?[0-9]{1,18}(\.[0-9]{1,3})?
+        description: Maturity Amount for a Term Deposit and Loan Accounts
+        example: "5877.78"
+      accountStartDate:
+        type: string
+        format: date
+        description: The start date of the account. Mandatory for Loan & Term Deposit
+          Accounts. The date is in ISO 8601 date format yyyy-mm-dd.
+        example: 2019-07-01
+      accountEndDate:
+        type: string
+        format: date
+        description: The end date of the account. Mandatory for Loan & Term Deposit
+          Accounts. The date is in ISO 8601 date format yyyy-mm-dd.
+        example: 2019-07-01
+      bankShortName:
+        type: string
+        description: Bank abbreviated name or the Bank Short Name
+        example: CITI
+        maxLength: 120
+      overDraftLimit:
+        type: string
+        pattern: -?[0-9]{1,18}(\.[0-9]{1,3})?
+        description: Over Draft Limit of the account
+        example: "10000.00"
+  _Meta:
+    type: object
+    description: list of metadata
+    title: Meta Information
+    properties:
+      limit:
+        type: integer
+        format: int32
+        description: Number of items per page
+        example: 5
+        minimum: 1
+        maximum: 200
+      pageCount:
+        type: integer
+        format: int32
+        description: Total number of pages
+        example: 12
+        minimum: 0
+        maximum: 999999999999
+      itemCount:
+        type: integer
+        format: int32
+        description: Total number of items
+        example: 63
+        minimum: 0
+        maximum: 999999999999
+  ErrorResponse:
+    description: Error Response definition
+    type: object
+    title: Error Response
+    properties:
+      type:
+        type: string
+        description: A URI reference that identifies the problem type
+        example: https://api.finastra.com/validation-error
+        maxLength: 256
+      title:
+        type: string
+        description: A short summary of the problem type
+        example: The request is invalid
+        maxLength: 256
+      status:
+        type: integer
+        description: The HTTP status code generated by the origin server for this
+          occurrence of the problem
+        format: int32
+        example: 400
+      detail:
+        type: string
+        description: 'A human-readable explanation specific to this occurrence of the
+          problem example: "The account does not exist"'
+        maxLength: 256
+      causes:
+        description: List of fields with validation failure
+        type: array
+        items:
+          $ref: "#/definitions/ValidationFailure"
+  ValidationFailure:
+    description: Field validation failure. This will enable the user interface to
+      highlight field with error.
+    type: object
+    title: Validation Failure
+    properties:
+      title:
+        description: Description of the error
+        type: string
+        example: The account 1234567890 is dormant
+        maxLength: 256
+      field:
+        description: Field where error occurs
+        type: string
+        example: account
+        maxLength: 256
+      fieldValue:
+        description: The value of the field where the error occurred
+        type: string
+        example: "0543123467083"
+        maxLength: 256
