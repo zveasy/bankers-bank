@@ -1,4 +1,4 @@
-from sdk.python.bankersbank.client import BankersBankClient
+from bankersbank.client import BankersBankClient
 import requests
 
 client = BankersBankClient(base_url="http://127.0.0.1:8000", token="testtoken")
