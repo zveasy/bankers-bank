@@ -1,2 +1,38 @@
+# Certificates & local env
 certs/
 .env.development/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+.env
+.pytest_cache/
+.coverage
+.tox/
+.cache
+.mypy_cache/
+.conda/
+
+# Poetry
+poetry.lock
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test outputs
+test_output.json
