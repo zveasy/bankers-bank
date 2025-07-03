@@ -1,0 +1,8 @@
+pyproject.toml
+bankersbank/__init__.py
+bankersbank/client.py
+bankersbank.egg-info/PKG-INFO
+bankersbank.egg-info/SOURCES.txt
+bankersbank.egg-info/dependency_links.txt
+bankersbank.egg-info/requires.txt
+bankersbank.egg-info/top_level.txt
