@@ -1,0 +1,59 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SweepOrder",
+  "type": "object",
+  "properties": {
+    "order_id": {
+      "type": "string",
+      "description": "Unique identifier for the sweep order"
+    },
+    "source_account": {
+      "type": "string",
+      "description": "Source account identifier"
+    },
+    "target_product": {
+      "type": "string",
+      "description": "Target product for the sweep"
+    },
+    "amount_usd": {
+      "type": "string",
+      "pattern": "^\\d+(\\.\\d+)?$",
+      "description": "USD amount as decimal string"
+    },
+    "cutoff_utc": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Cutoff time in UTC ISO format"
+    },
+    "risk_checks": {
+      "type": "object",
+      "properties": {
+        "var_limit_bps": {
+          "type": "integer",
+          "description": "VaR limit in basis points"
+        },
+        "observed_var_bps": {
+          "type": "integer",
+          "description": "Observed VaR in basis points"
+        }
+      },
+      "required": ["var_limit_bps", "observed_var_bps"],
+      "additionalProperties": false
+    },
+    "created_ts": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Creation timestamp in UTC ISO format"
+    }
+  },
+  "required": [
+    "order_id",
+    "source_account", 
+    "target_product",
+    "amount_usd",
+    "cutoff_utc",
+    "risk_checks",
+    "created_ts"
+  ],
+  "additionalProperties": false
+}
