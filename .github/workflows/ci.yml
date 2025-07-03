@@ -107,7 +107,10 @@ jobs:
 
       - name: Install project
         run: poetry install --no-interaction
-
+        
+      - name: Install SDK package (editable)
+        run: poetry run pip install -e sdk/python
+        
       - name: Run pytest
         run: poetry run pytest
 
