@@ -29,3 +29,37 @@ make test
 
 # regenerate SDKs when OpenAPI changes
 make gen-sdk
+
+```
+
+## Python SDK (bankersbank)
+
+> Use the Python SDK for API integration and testing.
+
+### Install the SDK locally
+
+```bash
+
+pip install sdk/python/dist/bankersbank-0.1.0-py3-none-any.whl
+
+```
+
+### Example Usage
+
+```python
+
+from bankersbank import BankersBankClient
+
+client = BankersBankClient(...)
+accounts = client.list_accounts()
+print(accounts)
+
+```
+
+## Mock API Endpoints
+
+> For local dev/testing without live Finastra sandbox, see:
+
+- docs/mock_api_endpoints.md
+
+Last updated: 2025-06-27

@@ -1,0 +1,3014 @@
+swagger: "2.0"
+info:
+  title: Payment Following Raw ISO20022
+  version: 3.0.4
+  description: Payment initiation, Payment modification and Payment cancellation
+    by business client. Includes validation that the initiator is the owner of
+    the account to debit. Usage of a generic ISO20022 pain.001 skeleton to allow
+    maximum variants for payment initiation and modification. With the
+    indication of authorization required the transaction will be warehoused for
+    approval.
+  x-finastra-category: Payments
+  x-finastra-subcategory: Payment Initiation
+  x-finastra-short-description: Initiate, modify or cancel a new Customer Payment
+    based on ISO20022 and perform pre-initiation calculations such as currency
+    conversion rates
+  x-finastra-tags:
+    - Fusion Payments To Go
+  x-finastra-channel-type: DIGITAL
+  x-finastra-maturity-level: BETA
+  x-finastra-audience: PUBLIC
+  x-finastra-implementability: INTERNAL
+  x-finastra-icon: Icons_9s.svg
+  x-finastra-data-classification:
+    - Restricted
+  x-finastra-commitId: 24a2e0265e2c91b83a3b6c63b24f2b5d4f39a7ea
+  contact:
+    name: API Support
+    url: https://community.fusionfabric.cloud/index.html
+host: api.fusionfabric.cloud
+basePath: /payment/iso/customer-payment-initiation/v3
+schemes:
+  - https
+securityDefinitions:
+  Oauth2:
+    type: oauth2
+    description: Oauth 2.0 authentication
+    authorizationUrl: https://api.fusionfabric.cloud/login/v1/sandbox/oidc/authorize
+    tokenUrl: https://api.fusionfabric.cloud/login/v1/sandbox/oidc/token
+    flow: accessCode
+    scopes: {}
+security:
+  - Oauth2: []
+paths:
+  /credit-transfer/single-ct/initiate:
+    post:
+      tags:
+        - ISO20022 Payment
+      description: Initiate a new Customer Credit Transfer Payment based on ISO20022
+        pain.001.001.09
+      operationId: post-creditTransfer-singleCt-initiate
+      summary: /single-ct/initiate
+      parameters:
+        - name: PaymentInitiationRequest
+          in: body
+          schema:
+            $ref: "#/definitions/PaymentInitiationRequest"
+          description: the initiated payment
+      consumes:
+        - application/json
+      responses:
+        "200":
+          description: successfully accept the payment initiation request accepted
+          headers:
+            Location:
+              type: string
+              description: "relative URL to track the payment. Example:
+                usd-tch-real-time/E9A0KNAE02JE9465/status, where
+                E9A0KNAE02JE9465 is the paymentId in the GET status HTTP
+                Request."
+          schema:
+            $ref: "#/definitions/PaymentResponse"
+        "400":
+          description: The payment does not pass scheme validation
+          schema:
+            $ref: "#/definitions/ValidationResponse"
+        "401":
+          description: Authorization has been denied for this request. Please check your
+            subscription key or user type.
+          schema:
+            $ref: "#/definitions/Error"
+        "500":
+          description: internal server error
+          schema:
+            $ref: "#/definitions/Error"
+        "503":
+          description: Service Unavailable.
+          schema:
+            $ref: "#/definitions/Error"
+      produces:
+        - application/json
+      x-finastra-data-classification:
+        - Restricted
+  /credit-transfer/{paymentId}/status:
+    get:
+      tags:
+        - ISO20022 Payment
+      description: get the status of a payment
+      operationId: get-creditTransfer-paymentId-status
+      summary: /{paymentId}/status
+      parameters:
+        - name: paymentId
+          in: path
+          description: the id of the payment. Taken from Location parameter of the
+            response header.
+          required: true
+          type: string
+          maxLength: 26
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: "#/definitions/PaymentResponse"
+        "400":
+          description: bad request
+          schema:
+            $ref: "#/definitions/Error"
+        "401":
+          description: Authorization has been denied for this request. Please check your
+            subscription key or user type.
+          schema:
+            $ref: "#/definitions/Error"
+        "404":
+          description: No Such Payment
+          schema:
+            $ref: "#/definitions/Error"
+        "500":
+          description: internal server error
+          schema:
+            $ref: "#/definitions/Error"
+      produces:
+        - application/json
+      x-finastra-data-classification:
+        - Restricted
+  /credit-transfer/{paymentId}:
+    put:
+      tags:
+        - ISO20022 Payment
+      description: Modify a Customer Credit Transfer Payment based on ISO20022
+        pain.001.001.09
+      operationId: put-creditTransfer-singleCt
+      summary: /{paymentId}
+      parameters:
+        - name: PaymentModificationRequest
+          in: body
+          schema:
+            $ref: "#/definitions/PaymentModificationRequest"
+          description: the modified payment
+        - name: paymentId
+          in: path
+          description: the id of the payment. Taken from Location parameter of the
+            response header.
+          required: true
+          type: string
+          maxLength: 26
+        - name: If-Match
+          description: According to RFC7232, the If-Match HTTP request header makes the
+            request conditional. For GET and HEAD methods, the server will send
+            back the requested resource only if it matches one of the listed
+            ETags.Required double quotes
+          in: header
+          required: true
+          type: string
+          maxLength: 256
+      consumes:
+        - application/json
+      responses:
+        "200":
+          description: successfully accept the payment initiation request accepted
+          headers:
+            Location:
+              type: string
+              description: "relative URL to track the payment. Example:
+                usd-tch-real-time/E9A0KNAE02JE9465/status, where
+                E9A0KNAE02JE9465 is the paymentId in the GET status HTTP
+                Request."
+          schema:
+            $ref: "#/definitions/PaymentResponse"
+        "400":
+          description: The payment does not pass scheme validation
+          schema:
+            $ref: "#/definitions/ValidationResponse"
+        "401":
+          description: Authorization has been denied for this request. Please check your
+            subscription key or user type.
+          schema:
+            $ref: "#/definitions/Error"
+        "403":
+          description: Forbidden
+          schema:
+            $ref: "#/definitions/Error"
+        "404":
+          description: Payment not found
+          schema:
+            $ref: "#/definitions/Error"
+        "409":
+          description: Conflict
+          schema:
+            $ref: "#/definitions/Error"
+        "412":
+          description: Precondition Failed - version provided in the If-Match header is
+            invalid
+          schema:
+            $ref: "#/definitions/Error"
+        "428":
+          description: Precondition Required
+          schema:
+            $ref: "#/definitions/Error"
+        "500":
+          description: Internal server error
+          schema:
+            $ref: "#/definitions/Error"
+        "503":
+          description: Service Unavailable.
+          schema:
+            $ref: "#/definitions/Error"
+      produces:
+        - application/json
+      x-finastra-data-classification:
+        - Restricted
+    delete:
+      tags:
+        - ISO20022 Payment
+      description: Cancel a payment
+      operationId: cancel-creditTransfer-paymentId
+      summary: /{paymentId}
+      parameters:
+        - name: PaymentCancellationRequest
+          in: body
+          description: Resaon for cancelling the payment
+          schema:
+            $ref: "#/definitions/PaymentCancellationRequest"
+        - name: paymentId
+          in: path
+          description: The id of the payment. Taken from Location parameter of the
+            response header
+          required: true
+          type: string
+          maxLength: 26
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: "#/definitions/PaymentResponse"
+        "400":
+          description: bad request
+          schema:
+            $ref: "#/definitions/Error"
+        "401":
+          description: Authorization has been denied for this request. Please check your
+            subscription key or user type
+          schema:
+            $ref: "#/definitions/Error"
+        "404":
+          description: No payment to cancel
+          schema:
+            $ref: "#/definitions/Error"
+        "409":
+          description: Conflict
+          schema:
+            $ref: "#/definitions/Error"
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: "#/definitions/Error"
+      produces:
+        - application/json
+      x-finastra-data-classification:
+        - Restricted
+  /credit-transfer/draft-payments:
+    post:
+      tags:
+        - ISO20022 Draft Payment
+      description: Creation of a draft Payment based on ISO20022 pain.001.001.09. This
+        payment will not be submitted and will be stored to be submitted using
+        'submit' endpoint
+      operationId: post-creditTransfer-draftPayments
+      summary: /draft-payments
+      parameters:
+        - name: PaymentInitiationRequest
+          in: body
+          schema:
+            $ref: "#/definitions/PaymentInitiationRequest"
+          description: Initiate draft payment
+      consumes:
+        - application/json
+      responses:
+        "200":
+          description: successfully accept the draft payment initiation request
+          headers:
+            Location:
+              type: string
+              description: "relative URL to track the payment. Example:
+                usd-tch-real-time/E9A0KNAE02JE9465/status, where
+                E9A0KNAE02JE9465 is the paymentId in the GET status HTTP
+                Request."
+            ETag:
+              description: This field represent the exact time of draft payment initiation.
+                This should be used in the If-Match request header of draft
+                payment modification endpoint
+              type: string
+              maxLength: 256
+          schema:
+            $ref: "#/definitions/PaymentResponse"
+        "400":
+          description: The payment does not pass scheme validation
+          schema:
+            $ref: "#/definitions/ValidationResponse"
+        "401":
+          description: Authorization has been denied for this request. Please check your
+            subscription key or user type.
+          schema:
+            $ref: "#/definitions/Error"
+        "500":
+          description: internal server error
+          schema:
+            $ref: "#/definitions/Error"
+      produces:
+        - application/json
+      x-finastra-data-classification:
+        - Restricted
+  /credit-transfer/draft-payments/{paymentId}:
+    put:
+      tags:
+        - ISO20022 Draft Payment
+      description: Modification of a draft Payment based on ISO20022 pain.001.001.09.
+        This payment will not be submitted and will be stored to be submitted
+        using 'submit' endpoint
+      operationId: put-creditTransfer-draftPayments
+      summary: /draft-payments/{paymentId}
+      parameters:
+        - name: PaymentInitiationRequest
+          in: body
+          schema:
+            $ref: "#/definitions/PaymentInitiationRequest"
+          description: Modify draft payment
+        - name: paymentId
+          in: path
+          description: the id of the payment. Taken from Location parameter of the draft
+            payment response header.
+          required: true
+          type: string
+          maxLength: 26
+        - name: If-Match
+          description: According to RFC7232, the If-Match HTTP request header makes the
+            request conditional. For GET and HEAD methods, the server will send
+            back the requested resource only if it matches one of the listed
+            ETags.Required double quotes
+          in: header
+          required: true
+          type: string
+          maxLength: 256
+      consumes:
+        - application/json
+      responses:
+        "200":
+          description: successfully accept the payment modification request
+          headers:
+            Location:
+              type: string
+              description: "relative URL to track the payment. Example:
+                usd-tch-real-time/E9A0KNAE02JE9465/status, where
+                E9A0KNAE02JE9465 is the paymentId in the GET status HTTP
+                Request."
+          schema:
+            $ref: "#/definitions/PaymentResponse"
+        "400":
+          description: The payment does not pass scheme validation
+          schema:
+            $ref: "#/definitions/ValidationResponse"
+        "401":
+          description: Authorization has been denied for this request. Please check your
+            subscription key or user type.
+          schema:
+            $ref: "#/definitions/Error"
+        "403":
+          description: Forbidden
+          schema:
+            $ref: "#/definitions/Error"
+        "404":
+          description: Payment not found
+          schema:
+            $ref: "#/definitions/Error"
+        "409":
+          description: Conflict
+          schema:
+            $ref: "#/definitions/Error"
+        "412":
+          description: Precondition Failed - version provided in the If-Match header is
+            invalid
+          schema:
+            $ref: "#/definitions/Error"
+        "428":
+          description: Precondition Required
+          schema:
+            $ref: "#/definitions/Error"
+        "500":
+          description: internal server error
+          schema:
+            $ref: "#/definitions/Error"
+      produces:
+        - application/json
+      x-finastra-data-classification:
+        - Restricted
+  /credit-transfer/draft-payments/{paymentId}/submit:
+    post:
+      tags:
+        - ISO20022 Draft Payment
+      description: Initiate a Customer Credit Transfer Payment based on ISO20022
+        pain.001.001.09. This payment will come from a draft payment created
+        before the initiation.
+      operationId: post-creditTransfer-draftPayments-submit
+      summary: /draft-payments/{paymentId}/submit
+      parameters:
+        - name: paymentId
+          in: path
+          description: the id of the payment. Taken from Location parameter of the draft
+            payment response header.
+          required: true
+          type: string
+          maxLength: 26
+        - name: If-Match
+          description: According to RFC7232, the If-Match HTTP request header makes the
+            request conditional. For GET and HEAD methods, the server will send
+            back the requested resource only if it matches one of the listed
+            ETags.Required double quotes
+          in: header
+          required: true
+          type: string
+          maxLength: 256
+      consumes:
+        - application/json
+      responses:
+        "200":
+          description: successfully accept the payment submission request
+          headers:
+            Location:
+              type: string
+              description: "relative URL to track the payment. Example:
+                usd-tch-real-time/E9A0KNAE02JE9465/status, where
+                E9A0KNAE02JE9465 is the paymentId in the GET status HTTP
+                Request."
+          schema:
+            $ref: "#/definitions/PaymentResponse"
+        "400":
+          description: The payment does not pass scheme validation
+          schema:
+            $ref: "#/definitions/ValidationResponse"
+        "401":
+          description: Authorization has been denied for this request. Please check your
+            subscription key or user type.
+          schema:
+            $ref: "#/definitions/Error"
+        "403":
+          description: Forbidden
+          schema:
+            $ref: "#/definitions/Error"
+        "404":
+          description: Payment not found
+          schema:
+            $ref: "#/definitions/Error"
+        "409":
+          description: Conflict
+          schema:
+            $ref: "#/definitions/Error"
+        "412":
+          description: Precondition Failed - version provided in the If-Match header is
+            invalid
+          schema:
+            $ref: "#/definitions/Error"
+        "428":
+          description: Precondition Required
+          schema:
+            $ref: "#/definitions/Error"
+        "500":
+          description: internal server error
+          schema:
+            $ref: "#/definitions/Error"
+      produces:
+        - application/json
+      x-finastra-data-classification:
+        - Restricted
+  /credit-transfer/draft-payments/{paymentId}/details:
+    get:
+      tags:
+        - ISO20022 Draft Payment
+      description: Get the status and the details of draft payment
+      operationId: get-creditTransfer-draftPayment-paymentId-status
+      summary: /draft-payments/{paymentId}/status
+      parameters:
+        - name: paymentId
+          in: path
+          description: the id of the draft payment. Taken from Location parameter of the
+            response header of draft payment.
+          required: true
+          type: string
+          maxLength: 26
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: "#/definitions/PaymentResponse"
+        "400":
+          description: bad request
+          schema:
+            $ref: "#/definitions/Error"
+        "401":
+          description: Authorization has been denied for this request. Please check your
+            subscription key or user type.
+          schema:
+            $ref: "#/definitions/Error"
+        "404":
+          description: No Such Payment
+          schema:
+            $ref: "#/definitions/Error"
+        "500":
+          description: internal server error
+          schema:
+            $ref: "#/definitions/Error"
+      produces:
+        - application/json
+      x-finastra-data-classification:
+        - Restricted
+definitions:
+  PaymentResponse:
+    type: object
+    properties:
+      CstmrPmtStsRpt:
+        $ref: "#/definitions/CustomerPaymentStatusReportV06"
+      "@xmlns":
+        type: string
+        example: urn:iso:std:iso:20022:tech:xsd:pain.002.001.10
+        default: urn:iso:std:iso:20022:tech:xsd:pain.002.001.10
+        description: As defined in ISO20022 standard
+        maxLength: 46
+    additionalProperties: false
+    description: As defined in ISO20022 standard
+    title: PaymentResponse
+  Error:
+    type: object
+    description: Error management following RFC 7807 HTTP Problem Details
+    properties:
+      type:
+        type: string
+        description: A URI reference [RFC3986] that identifies the problem type
+        maxLength: 256
+      title:
+        type: string
+        description: A short human-readable summary of the problem type
+        maxLength: 256
+      status:
+        type: integer
+        description: The HTTP status code generated by the origin server for this
+          occurrence of the problem
+      details:
+        type: string
+        description: A human-readable explanation specific to this occurrence of the
+          type of the problem
+        maxLength: 256
+      causes:
+        type: array
+        description: A human-readable explanation specific to this occurrence of the problem
+        items:
+          $ref: "#/definitions/Cause"
+    title: Error
+  Cause:
+    type: object
+    description: Errors
+    properties:
+      field:
+        $ref: "#/definitions/Max35Text"
+      description:
+        $ref: "#/definitions/Max1025Text"
+    title: Cause
+  PaymentInitiationRequest:
+    type: object
+    properties:
+      InitiationContext:
+        $ref: "#/definitions/InitiationContext"
+      CstmrCdtTrfInitn:
+        $ref: "#/definitions/CustomerCreditTransferInitiationV06"
+      "@xmlns":
+        type: string
+        example: urn:iso:std:iso:20022:tech:xsd:pain.001.001.09
+        default: urn:iso:std:iso:20022:tech:xsd:pain.001.001.09
+        description: As defined in ISO20022 standard
+        maxLength: 46
+    additionalProperties: false
+    description: As defined in ISO20022 standard
+    required:
+      - InitiationContext
+      - CstmrCdtTrfInitn
+    title: PaymentInitiationRequest
+  PaymentModificationRequest:
+    type: object
+    properties:
+      InitiationContext:
+        $ref: "#/definitions/InitiationContext"
+      CstmrCdtTrfInitn:
+        $ref: "#/definitions/CustomerCreditTransferModificationV06"
+      "@xmlns":
+        type: string
+        example: urn:iso:std:iso:20022:tech:xsd:pain.001.001.09
+        default: urn:iso:std:iso:20022:tech:xsd:pain.001.001.09
+        description: As defined in ISO20022 standard
+        maxLength: 46
+    additionalProperties: false
+    description: As defined in ISO20022 standard
+    required:
+      - InitiationContext
+      - CstmrCdtTrfInitn
+    title: PaymentModificationRequest
+  InitiationContext:
+    type: object
+    properties:
+      id:
+        type: string
+        description: Initiation ID will be used for flow selection as well as rules
+          identifications
+        maxLength: 35
+      subId:
+        type: string
+        description: Additional place holder for initiation ID incase another level of
+          granularity is required in flow selection etc
+        maxLength: 35
+      schmeNm:
+        type: string
+        description: for cases where target schema is definitive (e.g. PSD2 initiating
+          SEPA Inst payment) the target schema needs to be specified as it can
+          not go elsewhere.
+        enum:
+          - BOOK
+          - SWIFT
+          - INTERO
+          - MEPSPLUS
+          - NZSCP
+          - RENTAS2MYR
+          - PDS
+          - NPP
+          - EURO1
+          - RTGS
+          - TARGET2
+          - TCH_RTPS
+          - RITS
+          - INUPI
+          - SCT_INST
+          - FED
+          - FEDNY
+          - HK_FPS_CT
+          - STEP1
+          - INIMPS
+          - MYRPP
+          - CHAPS
+          - LVTS1
+          - LVTS2
+          - SCT_INST_STET
+          - SAMOS-ZCL
+          - SAMOS-ZDS
+          - SIRESS
+          - SIRESS-SRS
+          - SAMOS
+          - HK_FPS_CT_CNY
+          - HK_FPS_CT_HKD
+          - THPROMPTPAY
+      saveOnError:
+        type: boolean
+        description: ": defines whether the payment will be stored when business error
+          occurs. Default value = true"
+        default: true
+      sourceId:
+        $ref: "#/definitions/Max16Text"
+      preCalculatedCharges:
+        $ref: "#/definitions/preCalculatedCharges"
+    additionalProperties: false
+    description: As defined in ISO20022 standard
+    title: InitiationContext
+  preCalculatedCharges:
+    description: Amount and currency of pre-calculated charges (calculated by another api)
+    type: object
+    properties:
+      amount:
+        description: Amount of pre-calculated charges
+        $ref: "#/definitions/DecimalNumber"
+      currency:
+        description: "ISO 4217: Identification of the currency in which the Account is held"
+        type: string
+        pattern: "[A-Z]{3,3}"
+      suppressAdditionalCharges:
+        type: boolean
+        description: When this option is true, no additional charges will be calculated
+          beyond the amount entered in amount field
+    title: preCalculatedCharges
+  ValidationResponse:
+    description: Validation errors response
+    type: array
+    items:
+      $ref: "#/definitions/Max1025Text"
+    title: ValidationResponse
+  AccountIdentification4Choice:
+    description: Account Identification 4 Choice
+    type: object
+    properties:
+      IBAN:
+        $ref: "#/definitions/IBAN2007Identifier"
+      Othr:
+        $ref: "#/definitions/GenericAccountIdentification1"
+    additionalProperties: false
+    title: AccountIdentification4Choice
+  AccountSchemeName1Choice:
+    description: Account Scheme Name 1 Choice
+    type: object
+    properties:
+      Cd:
+        $ref: "#/definitions/ExternalAccountIdentification1Code"
+      Prtry:
+        $ref: "#/definitions/Max35Text"
+    additionalProperties: false
+    title: AccountSchemeName1Choice
+  ActiveOrHistoricCurrencyAndAmount:
+    description: Active Or Historic Currency And Amount
+    type: object
+    properties:
+      Amt:
+        $ref: "#/definitions/ActiveOrHistoricCurrencyAndAmount_SimpleType"
+      Ccy:
+        $ref: "#/definitions/ActiveOrHistoricCurrencyCode"
+    required:
+      - Ccy
+    title: ActiveOrHistoricCurrencyAndAmount
+  AmountType4Choice:
+    description: Amount Type 4 Choice
+    type: object
+    properties:
+      InstdAmt:
+        $ref: "#/definitions/ActiveOrHistoricCurrencyAndAmount"
+      EqvtAmt:
+        $ref: "#/definitions/EquivalentAmount2"
+    additionalProperties: false
+    title: AmountType4Choice
+  Authorisation1Choice:
+    description: Authorisation 1 Choice
+    type: object
+    properties:
+      Cd:
+        $ref: "#/definitions/Authorisation1Code"
+      Prtry:
+        $ref: "#/definitions/Max128Text"
+    minProperties: 1
+    maxProperties: 1
+    additionalProperties: false
+    title: Authorisation1Choice
+  BranchAndFinancialInstitutionIdentification5:
+    description: Branch And Financial Institution Identification
+    type: object
+    properties:
+      FinInstnId:
+        $ref: "#/definitions/FinancialInstitutionIdentification8"
+      BrnchId:
+        $ref: "#/definitions/BranchData2"
+    additionalProperties: false
+    required:
+      - FinInstnId
+    title: BranchAndFinancialInstitutionIdentification5
+  BranchData2:
+    description: Branch Data
+    type: object
+    properties:
+      Id:
+        $ref: "#/definitions/Max35Text"
+      Nm:
+        $ref: "#/definitions/Max140Text"
+      PstlAdr:
+        $ref: "#/definitions/PostalAddress6"
+    additionalProperties: false
+    title: BranchData2
+  CashAccount24:
+    description: Cash Account
+    type: object
+    properties:
+      Id:
+        $ref: "#/definitions/AccountIdentification4Choice"
+      Tp:
+        $ref: "#/definitions/CashAccountType2Choice"
+      Ccy:
+        $ref: "#/definitions/ActiveOrHistoricCurrencyCode"
+      Nm:
+        $ref: "#/definitions/Max70Text"
+    additionalProperties: false
+    required:
+      - Id
+    title: CashAccount24
+  CashAccountType2Choice:
+    description: Cash Account Type Choice
+    type: object
+    properties:
+      Cd:
+        $ref: "#/definitions/ExternalCashAccountType1Code"
+      Prtry:
+        $ref: "#/definitions/Max35Text"
+    required:
+      - Cd
+      - Prtry
+    additionalProperties: false
+    title: CashAccountType2Choice
+  CategoryPurpose1Choice:
+    description: Category Purpose Choice
+    type: object
+    properties:
+      Cd:
+        $ref: "#/definitions/ExternalCategoryPurpose1Code"
+      Prtry:
+        $ref: "#/definitions/Max35Text"
+    minProperties: 1
+    maxProperties: 1
+    additionalProperties: false
+    title: CategoryPurpose1Choice
+  Cheque7:
+    description: Cheque
+    type: object
+    properties:
+      ChqTp:
+        $ref: "#/definitions/ChequeType2Code"
+      ChqNb:
+        $ref: "#/definitions/Max35Text"
+      ChqFr:
+        $ref: "#/definitions/NameAndAddress10"
+      DlvryMtd:
+        $ref: "#/definitions/ChequeDeliveryMethod1Choice"
+      DlvrTo:
+        $ref: "#/definitions/NameAndAddress10"
+      InstrPrty:
+        $ref: "#/definitions/Priority2Code"
+      ChqMtrtyDt:
+        $ref: "#/definitions/ISODate"
+      FrmsCd:
+        $ref: "#/definitions/Max35Text"
+      MemoFld:
+        type: array
+        maxItems: 2
+        items:
+          $ref: "#/definitions/Max35Text"
+        description: As defined in ISO20022 standard
+      RgnlClrZone:
+        $ref: "#/definitions/Max35Text"
+      PrtLctn:
+        $ref: "#/definitions/Max35Text"
+      Sgntr:
+        type: array
+        maxItems: 5
+        items:
+          $ref: "#/definitions/Max70Text"
+        description: As defined in ISO20022 standard
+    additionalProperties: false
+    title: Cheque7
+  ChequeDeliveryMethod1Choice:
+    description: Cheque Delivery Method Choice
+    type: object
+    properties:
+      Cd:
+        $ref: "#/definitions/ChequeDelivery1Code"
+      Prtry:
+        $ref: "#/definitions/Max35Text"
+    minProperties: 1
+    maxProperties: 1
+    additionalProperties: false
+    title: ChequeDeliveryMethod1Choice
+  ClearingSystemIdentification2Choice:
+    description: Clearing System Identification Choice
+    type: object
+    properties:
+      Cd:
+        $ref: "#/definitions/ExternalClearingSystemIdentification1Code"
+      Prtry:
+        $ref: "#/definitions/Max35Text"
+    minProperties: 1
+    maxProperties: 1
+    additionalProperties: false
+    title: ClearingSystemIdentification2Choice
+  ClearingSystemMemberIdentification2:
+    description: Clearing System Member Identification
+    type: object
+    properties:
+      ClrSysId:
+        $ref: "#/definitions/ClearingSystemIdentification2Choice"
+      MmbId:
+        $ref: "#/definitions/Max35Text"
+    additionalProperties: false
+    required:
+      - MmbId
+    title: ClearingSystemMemberIdentification2
+  ContactDetails2:
+    description: Contact Details
+    type: object
+    properties:
+      NmPrfx:
+        $ref: "#/definitions/NamePrefix1Code"
+      Nm:
+        $ref: "#/definitions/Max140Text"
+      PhneNb:
+        $ref: "#/definitions/PhoneNumber"
+      MobNb:
+        $ref: "#/definitions/PhoneNumber"
+      FaxNb:
+        $ref: "#/definitions/PhoneNumber"
+      EmailAdr:
+        $ref: "#/definitions/Max2048Text"
+      Othr:
+        $ref: "#/definitions/Max35Text"
+    additionalProperties: false
+    title: ContactDetails2
+  CreditTransferTransaction20:
+    description: Credit Transfer Transaction
+    type: object
+    properties:
+      PmtId:
+        $ref: "#/definitions/PaymentIdentification1"
+      PmtTpInf:
+        $ref: "#/definitions/PaymentTypeInformation19"
+      Amt:
+        $ref: "#/definitions/AmountType4Choice"
+      XchgRateInf:
+        $ref: "#/definitions/ExchangeRate1"
+      ChrgBr:
+        $ref: "#/definitions/ChargeBearerType1Code"
+      ChqInstr:
+        $ref: "#/definitions/Cheque7"
+        description: Provided information will be sent as is
+      UltmtDbtr:
+        $ref: "#/definitions/PartyIdentification43"
+      IntrmyAgt1:
+        $ref: "#/definitions/BranchAndFinancialInstitutionIdentification5"
+      IntrmyAgt1Acct:
+        $ref: "#/definitions/CashAccount24"
+      IntrmyAgt2:
+        $ref: "#/definitions/BranchAndFinancialInstitutionIdentification5"
+      IntrmyAgt2Acct:
+        $ref: "#/definitions/CashAccount24"
+      IntrmyAgt3:
+        $ref: "#/definitions/BranchAndFinancialInstitutionIdentification5"
+      IntrmyAgt3Acct:
+        $ref: "#/definitions/CashAccount24"
+      CdtrAgt:
+        $ref: "#/definitions/BranchAndFinancialInstitutionIdentification5"
+      CdtrAgtAcct:
+        $ref: "#/definitions/CashAccount24"
+      Cdtr:
+        $ref: "#/definitions/PartyIdentification43"
+      CdtrAcct:
+        $ref: "#/definitions/CashAccount24"
+      UltmtCdtr:
+        $ref: "#/definitions/PartyIdentification43"
+      InstrForCdtrAgt:
+        type: array
+        items:
+          $ref: "#/definitions/InstructionForCreditorAgent1"
+        description: As defined in ISO20022 standard
+      InstrForDbtrAgt:
+        $ref: "#/definitions/Max140Text"
+      Purp:
+        $ref: "#/definitions/Purpose2Choice"
+      RgltryRptg:
+        type: array
+        maxItems: 10
+        items:
+          $ref: "#/definitions/RegulatoryReporting3"
+        description: As defined in ISO20022 standard
+      Tax:
+        $ref: "#/definitions/TaxInformation3"
+        description: Provided information will be sent as is
+      RltdRmtInf:
+        type: array
+        maxItems: 10
+        items:
+          $ref: "#/definitions/RemittanceLocation4"
+        description: As defined in ISO20022 standard
+      RmtInf:
+        $ref: "#/definitions/RemittanceInformation10"
+      SplmtryData:
+        type: array
+        items:
+          $ref: "#/definitions/SupplementaryData1"
+        description: As defined in ISO20022 standard
+    additionalProperties: false
+    required:
+      - PmtId
+      - Amt
+    title: CreditTransferTransaction20
+  CreditTransferTransactionModification20:
+    description: Credit Transfer Transaction
+    type: object
+    properties:
+      PmtId:
+        $ref: "#/definitions/PaymentIdentificationModification1"
+      PmtTpInf:
+        $ref: "#/definitions/PaymentTypeInformation19"
+      Amt:
+        $ref: "#/definitions/AmountType4Choice"
+      XchgRateInf:
+        $ref: "#/definitions/ExchangeRate1"
+      ChrgBr:
+        $ref: "#/definitions/ChargeBearerType1Code"
+      ChqInstr:
+        $ref: "#/definitions/Cheque7"
+        description: Provided information will be sent as is
+      UltmtDbtr:
+        $ref: "#/definitions/PartyIdentification43"
+      IntrmyAgt1:
+        $ref: "#/definitions/BranchAndFinancialInstitutionIdentification5"
+      IntrmyAgt1Acct:
+        $ref: "#/definitions/CashAccount24"
+      IntrmyAgt2:
+        $ref: "#/definitions/BranchAndFinancialInstitutionIdentification5"
+      IntrmyAgt2Acct:
+        $ref: "#/definitions/CashAccount24"
+      IntrmyAgt3:
+        $ref: "#/definitions/BranchAndFinancialInstitutionIdentification5"
+      IntrmyAgt3Acct:
+        $ref: "#/definitions/CashAccount24"
+      CdtrAgt:
+        $ref: "#/definitions/BranchAndFinancialInstitutionIdentification5"
+      CdtrAgtAcct:
+        $ref: "#/definitions/CashAccount24"
+      Cdtr:
+        $ref: "#/definitions/PartyIdentification43"
+      CdtrAcct:
+        $ref: "#/definitions/CashAccount24"
+      UltmtCdtr:
+        $ref: "#/definitions/PartyIdentification43"
+      InstrForCdtrAgt:
+        type: array
+        items:
+          $ref: "#/definitions/InstructionForCreditorAgent1"
+        description: As defined in ISO20022 standard
+      InstrForDbtrAgt:
+        $ref: "#/definitions/Max140Text"
+      Purp:
+        $ref: "#/definitions/Purpose2Choice"
+      RgltryRptg:
+        type: array
+        maxItems: 10
+        items:
+          $ref: "#/definitions/RegulatoryReporting3"
+        description: As defined in ISO20022 standard
+      Tax:
+        $ref: "#/definitions/TaxInformation3"
+        description: Provided information will be sent as is
+      RltdRmtInf:
+        type: array
+        maxItems: 10
+        items:
+          $ref: "#/definitions/RemittanceLocation4"
+        description: As defined in ISO20022 standard
+      RmtInf:
+        $ref: "#/definitions/RemittanceInformation10"
+      SplmtryData:
+        type: array
+        items:
+          $ref: "#/definitions/SupplementaryData1"
+        description: As defined in ISO20022 standard
+    additionalProperties: false
+    required:
+      - PmtId
+      - Amt
+    title: CreditTransferTransaction20
+  CreditorReferenceInformation2:
+    description: Creditor Reference Information
+    type: object
+    properties:
+      Tp:
+        $ref: "#/definitions/CreditorReferenceType2"
+      Ref:
+        $ref: "#/definitions/Max35Text"
+    additionalProperties: false
+    title: CreditorReferenceInformation2
+  CreditorReferenceType1Choice:
+    description: Creditor Reference Type Choice
+    type: object
+    properties:
+      Cd:
+        $ref: "#/definitions/DocumentType3Code"
+      Prtry:
+        $ref: "#/definitions/Max35Text"
+    minProperties: 1
+    maxProperties: 1
+    additionalProperties: false
+    title: CreditorReferenceType1Choice
+  CreditorReferenceType2:
+    description: Creditor Reference Type
+    type: object
+    properties:
+      CdOrPrtry:
+        $ref: "#/definitions/CreditorReferenceType1Choice"
+      Issr:
+        $ref: "#/definitions/Max35Text"
+    additionalProperties: false
+    title: CreditorReferenceType2
+  CustomerPaymentStatusReportV06:
+    description: Customer Payment Status Report
+    type: object
+    properties:
+      GrpHdr:
+        $ref: "#/definitions/GroupHeader52"
+      OrgnlGrpInfAndSts:
+        $ref: "#/definitions/OriginalGroupHeader1"
+      OrgnlPmtInfAndSts:
+        type: array
+        items:
+          $ref: "#/definitions/OriginalPaymentInstruction12"
+        description: As defined in ISO20022 standard
+      SplmtryData:
+        type: array
+        items:
+          $ref: "#/definitions/SupplementaryData1"
+        description: As defined in ISO20022 standard
+    additionalProperties: false
+    title: CustomerPaymentStatusReportV06
+  CustomerCreditTransferInitiationV06:
+    description: Customer Credit Transfer Initiation
+    type: object
+    properties:
+      GrpHdr:
+        $ref: "#/definitions/GroupHeader48"
+      PmtInf:
+        type: array
+        minItems: 1
+        maxItems: 1
+        items:
+          $ref: "#/definitions/PaymentInstruction16"
+        description: As defined in ISO20022 standard
+      SplmtryData:
+        type: array
+        items:
+          $ref: "#/definitions/SupplementaryData1"
+        description: As defined in ISO20022 standard
+    required:
+      - GrpHdr
+      - PmtInf
+    additionalProperties: false
+    title: CustomerCreditTransferInitiationV06
+  CustomerCreditTransferModificationV06:
+    description: Customer Credit Transfer Modification
+    type: object
+    properties:
+      GrpHdr:
+        $ref: "#/definitions/GroupHeader49"
+      PmtInf:
+        type: array
+        minItems: 1
+        maxItems: 1
+        items:
+          $ref: "#/definitions/ModificationInstruction16"
+        description: As defined in ISO20022 standard
+      SplmtryData:
+        type: array
+        items:
+          $ref: "#/definitions/SupplementaryData1"
+        description: As defined in ISO20022 standard
+    additionalProperties: false
+    title: CustomerCreditTransferModificationV06
+  DateAndPlaceOfBirth:
+    description: Date And Place Of Birth
+    type: object
+    properties:
+      BirthDt:
+        $ref: "#/definitions/ISODate"
+      PrvcOfBirth:
+        $ref: "#/definitions/Max35Text"
+      CityOfBirth:
+        $ref: "#/definitions/Max35Text"
+      CtryOfBirth:
+        $ref: "#/definitions/CountryCode"
+    required:
+      - BirthDt
+      - CityOfBirth
+      - CtryOfBirth
+    additionalProperties: false
+    title: DateAndPlaceOfBirth
+  DatePeriodDetails:
+    description: Date Period Details
+    type: object
+    properties:
+      FrDt:
+        $ref: "#/definitions/ISODate"
+      ToDt:
+        $ref: "#/definitions/ISODate"
+    additionalProperties: false
+    title: DatePeriodDetails
+  DiscountAmountAndType1:
+    description: Discount Amount And Type
+    type: object
+    properties:
+      Tp:
+        $ref: "#/definitions/DiscountAmountType1Choice"
+      Amt:
+        $ref: "#/definitions/ActiveOrHistoricCurrencyAndAmount"
+    additionalProperties: false
+    title: DiscountAmountAndType1
+  DiscountAmountType1Choice:
+    description: Discount Amount Type Choice
+    type: object
+    properties:
+      Cd:
+        $ref: "#/definitions/ExternalDiscountAmountType1Code"
+      Prtry:
+        $ref: "#/definitions/Max35Text"
+    additionalProperties: false
+    title: DiscountAmountType1Choice
+  DocumentAdjustment1:
+    description: Document Adjustment
+    type: object
+    properties:
+      Amt:
+        $ref: "#/definitions/ActiveOrHistoricCurrencyAndAmount"
+      CdtDbtInd:
+        $ref: "#/definitions/CreditDebitCode"
+      Rsn:
+        $ref: "#/definitions/Max4Text"
+      AddtlInf:
+        $ref: "#/definitions/Max140Text"
+    additionalProperties: false
+    title: DocumentAdjustment1
+  EquivalentAmount2:
+    description: Equivalent Amount
+    type: object
+    properties:
+      Amt:
+        $ref: "#/definitions/ActiveOrHistoricCurrencyAndAmount"
+      CcyOfTrf:
+        $ref: "#/definitions/ActiveOrHistoricCurrencyCode"
+    additionalProperties: false
+    title: EquivalentAmount2
+  ExchangeRate1:
+    description: Exchange Rate
+    type: object
+    properties:
+      UnitCcy:
+        $ref: "#/definitions/ActiveOrHistoricCurrencyCode"
+      XchgRate:
+        $ref: "#/definitions/BaseOneRate"
+      RateTp:
+        $ref: "#/definitions/ExchangeRateType1Code"
+      CtrctId:
+        $ref: "#/definitions/Max35Text"
+    additionalProperties: false
+    title: ExchangeRate1
+  FinancialIdentificationSchemeName1Choice:
+    description: Financial Identification Scheme Name Choice
+    type: object
+    properties:
+      Cd:
+        $ref: "#/definitions/ExternalFinancialInstitutionIdentification1Code"
+      Prtry:
+        $ref: "#/definitions/Max35Text"
+    minProperties: 1
+    maxProperties: 1
+    additionalProperties: false
+    title: FinancialIdentificationSchemeName1Choice
+  FinancialInstitutionIdentification8:
+    description: Financial Institution Identification
+    type: object
+    properties:
+      BICFI:
+        $ref: "#/definitions/BICFIIdentifier"
+      ClrSysMmbId:
+        $ref: "#/definitions/ClearingSystemMemberIdentification2"
+      Nm:
+        $ref: "#/definitions/Max140Text"
+      PstlAdr:
+        $ref: "#/definitions/PostalAddress6"
+      Othr:
+        $ref: "#/definitions/GenericFinancialIdentification1"
+    additionalProperties: false
+    title: FinancialInstitutionIdentification8
+  Garnishment1:
+    description: Garnishment
+    type: object
+    properties:
+      Tp:
+        $ref: "#/definitions/GarnishmentType1"
+      Grnshee:
+        $ref: "#/definitions/PartyIdentification43"
+      GrnshmtAdmstr:
+        $ref: "#/definitions/PartyIdentification43"
+      RefNb:
+        $ref: "#/definitions/Max140Text"
+      Dt:
+        $ref: "#/definitions/ISODate"
+      RmtdAmt:
+        $ref: "#/definitions/ActiveOrHistoricCurrencyAndAmount"
+      FmlyMdclInsrncInd:
+        $ref: "#/definitions/TrueFalseIndicator"
+      MplyeeTermntnInd:
+        $ref: "#/definitions/TrueFalseIndicator"
+    additionalProperties: false
+    title: Garnishment1
+  GarnishmentType1:
+    description: Garnishment type
+    type: object
+    properties:
+      CdOrPrtry:
+        $ref: "#/definitions/GarnishmentType1Choice"
+      Issr:
+        $ref: "#/definitions/Max35Text"
+    additionalProperties: false
+    title: GarnishmentType1
+  GarnishmentType1Choice:
+    description: Garnishment type choice
+    type: object
+    properties:
+      Cd:
+        $ref: "#/definitions/ExternalGarnishmentType1Code"
+      Prtry:
+        $ref: "#/definitions/Max35Text"
+    additionalProperties: false
+    title: GarnishmentType1Choice
+  GenericAccountIdentification1:
+    description: Generic Account Identification
+    type: object
+    properties:
+      Id:
+        $ref: "#/definitions/Max34Text"
+      SchmeNm:
+        $ref: "#/definitions/AccountSchemeName1Choice"
+      Issr:
+        $ref: "#/definitions/Max35Text"
+    required:
+      - Id
+    additionalProperties: false
+    title: GenericAccountIdentification1
+  GenericFinancialIdentification1:
+    description: Generic Financial Identification
+    type: object
+    properties:
+      Id:
+        $ref: "#/definitions/Max35Text"
+      SchmeNm:
+        $ref: "#/definitions/FinancialIdentificationSchemeName1Choice"
+      Issr:
+        $ref: "#/definitions/Max35Text"
+    additionalProperties: false
+    required:
+      - Id
+    title: GenericFinancialIdentification1
+  GenericOrganisationIdentification1:
+    description: Generic Organisation Identification
+    type: object
+    properties:
+      Id:
+        $ref: "#/definitions/Max35Text"
+      SchmeNm:
+        $ref: "#/definitions/OrganisationIdentificationSchemeName1Choice"
+      Issr:
+        $ref: "#/definitions/Max35Text"
+    required:
+      - Id
+    additionalProperties: false
+    title: GenericOrganisationIdentification1
+  GenericPersonIdentification1:
+    description: Generic Organisation Identification
+    type: object
+    properties:
+      Id:
+        $ref: "#/definitions/Max35Text"
+      SchmeNm:
+        $ref: "#/definitions/PersonIdentificationSchemeName1Choice"
+      Issr:
+        $ref: "#/definitions/Max35Text"
+    additionalProperties: false
+    title: GenericPersonIdentification1
+  OriginalPaymentInstruction12:
+    description: Original Payment Instruction
+    type: object
+    properties:
+      OrgnlPmtInfId:
+        $ref: "#/definitions/Max35Text"
+      OrgnlNbOfTxs:
+        $ref: "#/definitions/Max15NumericText"
+      OrgnlCtrlSum:
+        $ref: "#/definitions/DecimalNumber"
+      PmtInfSts:
+        $ref: "#/definitions/TransactionGroupStatus3Code"
+      StsRsnInf:
+        type: array
+        items:
+          $ref: "#/definitions/StatusReasonInformation9"
+        description: As defined in ISO20022 standard
+      NbOfTxsPerSts:
+        $ref: "#/definitions/NumberOfTransactionsPerStatus3"
+      TxInfAndSts:
+        type: array
+        items:
+          $ref: "#/definitions/PaymentTransaction57"
+        description: As defined in ISO20022 standard
+    additionalProperties: false
+    title: OriginalPaymentInstruction12
+  PaymentTransaction57:
+    description: Payment Transaction
+    type: object
+    properties:
+      StsId:
+        $ref: "#/definitions/Max35Text"
+      OrgnlInstrId:
+        $ref: "#/definitions/Max35Text"
+      OrgnlEndToEndId:
+        $ref: "#/definitions/Max35Text"
+      TxSts:
+        $ref: "#/definitions/TransactionIndividualStatus3Code"
+      StsRsnInf:
+        type: array
+        items:
+          $ref: "#/definitions/StatusReasonInformation9"
+        description: As defined in ISO20022 standard
+      ChrgsInf:
+        $ref: "#/definitions/Charges2"
+      AccptncDtTm:
+        $ref: "#/definitions/ISODateTime"
+      AcctSvcrRef:
+        $ref: "#/definitions/Max35Text"
+      ClrSysRef:
+        $ref: "#/definitions/Max35Text"
+      OrgnlTxRef:
+        $ref: "#/definitions/OriginalTransactionReference20"
+      SplmtryData:
+        $ref: "#/definitions/SupplementaryData1"
+    additionalProperties: false
+    title: PaymentTransaction57
+  OriginalTransactionReference20:
+    description: Original Transaction Reference
+    type: object
+    properties:
+      IntrBkSttlmAmt:
+        $ref: "#/definitions/ActiveOrHistoricCurrencyAndAmount"
+      Amt:
+        $ref: "#/definitions/AmountType4Choice"
+      IntrBkSttlmDt:
+        $ref: "#/definitions/ISODate"
+      ReqdColltnDt:
+        $ref: "#/definitions/ISODate"
+      ReqdExctnDt:
+        $ref: "#/definitions/DateAndDateTime2Choice"
+      CdtrSchmeId:
+        $ref: "#/definitions/PartyIdentification43"
+      SttlmInf:
+        $ref: "#/definitions/SettlementInstruction1"
+      PmtTpInf:
+        $ref: "#/definitions/PaymentTypeInformation25"
+      PmtMtd:
+        $ref: "#/definitions/PaymentMethod4Code"
+        description: Specifies the transfer method that will be used to transfer an
+          amount of money. Must be TRF
+      MndtRltdInf:
+        $ref: "#/definitions/MandateRelatedInformation10"
+      RmtInf:
+        $ref: "#/definitions/RemittanceInformation10"
+      UltmtDbtr:
+        $ref: "#/definitions/Party40Choice"
+      Dbtr:
+        $ref: "#/definitions/Party40Choice"
+      DbtrAcct:
+        $ref: "#/definitions/CashAccount24"
+      DbtrAgt:
+        $ref: "#/definitions/BranchAndFinancialInstitutionIdentification5"
+      DbtrAgtAcct:
+        $ref: "#/definitions/CashAccount24"
+      CdtrAgt:
+        $ref: "#/definitions/BranchAndFinancialInstitutionIdentification5"
+      CdtrAgtAcct:
+        $ref: "#/definitions/CashAccount24"
+      Cdtr:
+        $ref: "#/definitions/Party40Choice"
+      CdtrAcct:
+        $ref: "#/definitions/CashAccount24"
+      UltmtCdtr:
+        $ref: "#/definitions/Party40Choice"
+    additionalProperties: false
+    title: OriginalTransactionReference20
+  NumberOfTransactionsPerStatus3:
+    description: Number Of Transactions Per Status
+    type: object
+    properties:
+      DtldNbOfTxs:
+        $ref: "#/definitions/Max15NumericText"
+      DtldSts:
+        $ref: "#/definitions/TransactionIndividualStatus3Code"
+      DtldCtrlSum:
+        $ref: "#/definitions/DecimalNumber"
+    additionalProperties: false
+    title: NumberOfTransactionsPerStatus3
+  PaymentTypeInformation25:
+    description: Payment Type Information
+    type: object
+    properties:
+      InstrPrty:
+        $ref: "#/definitions/Priority2Code"
+      ClrChanl:
+        $ref: "#/definitions/ClearingChannel2Code"
+      SvcLvl:
+        $ref: "#/definitions/ServiceLevel8Choice"
+      LclInstrm:
+        $ref: "#/definitions/LocalInstrument2Choice"
+      SeqTp:
+        $ref: "#/definitions/SequenceType3Code"
+      CtgyPurp:
+        $ref: "#/definitions/CategoryPurpose1Choice"
+    additionalProperties: false
+    title: PaymentTypeInformation25
+  MandateRelatedInformation10:
+    description: Mandate Related Information
+    type: object
+    properties:
+      MndtId:
+        $ref: "#/definitions/Max35Text"
+      DtOfSgntr:
+        $ref: "#/definitions/ISODate"
+      AmdmntInd:
+        $ref: "#/definitions/TrueFalseIndicator"
+      AmdmntInfDtls:
+        $ref: "#/definitions/AmendmentInformationDetails10"
+      ElctrncSgntr:
+        $ref: "#/definitions/Max1025Text"
+      FrstColltnDt:
+        $ref: "#/definitions/ISODate"
+      FnlColltnDt:
+        $ref: "#/definitions/ISODate"
+      Frqcy:
+        $ref: "#/definitions/Frequency21Choice"
+      Rsn:
+        $ref: "#/definitions/MandateSetupReason1Choice"
+    additionalProperties: false
+    title: MandateRelatedInformation10
+  AmendmentInformationDetails10:
+    description: Amendment In formation Details
+    type: object
+    properties:
+      OrgnlMndtId:
+        $ref: "#/definitions/Max35Text"
+      OrgnlCdtrSchmeId:
+        $ref: "#/definitions/PartyIdentification43"
+      OrgnlCdtrAgt:
+        $ref: "#/definitions/BranchAndFinancialInstitutionIdentification5"
+      OrgnlCdtrAgtAcct:
+        $ref: "#/definitions/CashAccount24"
+      OrgnlDbtr:
+        $ref: "#/definitions/PartyIdentification43"
+      OrgnlDbtrAcct:
+        $ref: "#/definitions/CashAccount24"
+      OrgnlDbtrAgt:
+        $ref: "#/definitions/BranchAndFinancialInstitutionIdentification5"
+      OrgnlDbtrAgtAcct:
+        $ref: "#/definitions/CashAccount24"
+      OrgnlFnlColltnDt:
+        $ref: "#/definitions/ISODate"
+      OrgnlFrqcy:
+        $ref: "#/definitions/Frequency21Choice"
+      OrgnlRsn:
+        $ref: "#/definitions/MandateSetupReason1Choice"
+    additionalProperties: false
+    title: AmendmentInformationDetails10
+  SettlementInstruction1:
+    description: Settlement Instruction
+    type: object
+    properties:
+      SttlmMtd:
+        $ref: "#/definitions/SettlementMethod1Code"
+      SttlmAcct:
+        $ref: "#/definitions/CashAccount24"
+      ClrSys:
+        $ref: "#/definitions/ClearingSystemIdentification3Choice"
+      InstgRmbrsmntAgt:
+        $ref: "#/definitions/BranchAndFinancialInstitutionIdentification5"
+      InstgRmbrsmntAgtAcct:
+        $ref: "#/definitions/CashAccount24"
+      InstdRmbrsmntAgt:
+        $ref: "#/definitions/BranchAndFinancialInstitutionIdentification5"
+      InstdRmbrsmntAgtAcct:
+        $ref: "#/definitions/CashAccount24"
+      ThrdRmbrsmntAgt:
+        $ref: "#/definitions/BranchAndFinancialInstitutionIdentification5"
+      ThrdRmbrsmntAgtAcct:
+        $ref: "#/definitions/CashAccount24"
+    additionalProperties: false
+    title: SettlementInstruction1
+  MandateSetupReason1Choice:
+    description: Mandate Setup Reason Choice
+    type: object
+    properties:
+      Cd:
+        $ref: "#/definitions/ExternalMandateSetupReason1Code"
+      Prtry:
+        $ref: "#/definitions/Max70Text"
+    title: MandateSetupReason1Choice
+  ClearingSystemIdentification3Choice:
+    description: Clearing System Identification Choice
+    type: object
+    properties:
+      Cd:
+        $ref: "#/definitions/ExternalCashClearingSystem1Code"
+      Prtry:
+        $ref: "#/definitions/Max35Text"
+    minProperties: 1
+    maxProperties: 1
+    additionalProperties: false
+    title: ClearingSystemIdentification3Choice
+  Frequency21Choice:
+    description: Frequency Choice
+    type: object
+    properties:
+      Tp:
+        $ref: "#/definitions/Frequency6Code"
+      Prd:
+        $ref: "#/definitions/FrequencyPeriod1"
+    additionalProperties: false
+    title: Frequency21Choice
+  FrequencyPeriod1:
+    description: Frequency Period
+    type: object
+    properties:
+      Tp:
+        $ref: "#/definitions/Frequency6Code"
+      CntPerPrd:
+        $ref: "#/definitions/DecimalNumber"
+    additionalProperties: false
+    title: FrequencyPeriod1
+  Charges2:
+    description: Charges
+    type: object
+    properties:
+      Amt:
+        $ref: "#/definitions/ActiveOrHistoricCurrencyAndAmount"
+      Agt:
+        $ref: "#/definitions/BranchAndFinancialInstitutionIdentification5"
+    additionalProperties: false
+    title: Charges2
+  StatusReasonInformation9:
+    description: Status Reason Information
+    type: object
+    properties:
+      Orgtr:
+        $ref: "#/definitions/PartyIdentification43"
+      Rsn:
+        $ref: "#/definitions/StatusReason6Choice"
+      AddtlInf:
+        items:
+          $ref: "#/definitions/Max105Text"
+        type: array
+        description: As defined in ISO20022 standard
+    additionalProperties: false
+    title: StatusReasonInformation9
+  StatusReason6Choice:
+    description: Status Reason Choice
+    type: object
+    properties:
+      Cd:
+        $ref: "#/definitions/ExternalStatusReason1Code"
+      Prtry:
+        $ref: "#/definitions/Max35Text"
+    minProperties: 1
+    maxProperties: 1
+    additionalProperties: false
+    title: StatusReason6Choice
+  OriginalGroupHeader1:
+    description: Original Group Header
+    type: object
+    properties:
+      OrgnlMsgId:
+        $ref: "#/definitions/Max35Text"
+      OrgnlMsgNmId:
+        $ref: "#/definitions/Max35Text"
+      OrgnlCreDtTm:
+        $ref: "#/definitions/ISODateTime"
+      OrgnlNbOfTxs:
+        $ref: "#/definitions/Max15NumericText"
+      OrgnlCtrlSum:
+        $ref: "#/definitions/DecimalNumber"
+      GrpSts:
+        $ref: "#/definitions/TransactionGroupStatus3Code"
+    additionalProperties: false
+    title: OriginalGroupHeader1
+  GroupHeader52:
+    description: Group Header
+    type: object
+    properties:
+      MsgId:
+        $ref: "#/definitions/Max35Text"
+      CreDtTm:
+        $ref: "#/definitions/ISODateTime"
+      InitgPty:
+        $ref: "#/definitions/PartyIdentification43"
+      FwdgAgt:
+        $ref: "#/definitions/BranchAndFinancialInstitutionIdentification5"
+      DbtrAgt:
+        $ref: "#/definitions/BranchAndFinancialInstitutionIdentification5"
+      CdtrAgt:
+        $ref: "#/definitions/BranchAndFinancialInstitutionIdentification5"
+    required:
+      - MsgId
+      - CreDtTm
+    additionalProperties: false
+    title: GroupHeader52
+  GroupHeader48:
+    description: Group Header
+    type: object
+    properties:
+      MsgId:
+        $ref: "#/definitions/Max35Text"
+      CreDtTm:
+        $ref: "#/definitions/ISODateTime"
+      Authstn:
+        type: array
+        maxItems: 2
+        items:
+          $ref: "#/definitions/Authorisation1Choice"
+        description: As defined in ISO20022 standard
+      NbOfTxs:
+        $ref: "#/definitions/Max15NumericText"
+        description: Number of individual transactions contained in the message. Should
+          be set to 1
+      CtrlSum:
+        $ref: "#/definitions/DecimalNumber"
+        description: Number of individual transactions contained in the message.
+      InitgPty:
+        $ref: "#/definitions/PartyIdentification43"
+      FwdgAgt:
+        $ref: "#/definitions/BranchAndFinancialInstitutionIdentification5"
+    required:
+      - MsgId
+      - CreDtTm
+      - NbOfTxs
+      - InitgPty
+    additionalProperties: false
+    title: GroupHeader48
+  GroupHeader49:
+    description: Group Header
+    type: object
+    properties:
+      MsgId:
+        $ref: "#/definitions/Max35Text"
+      CreDtTm:
+        $ref: "#/definitions/ISODateTime"
+      Authstn:
+        type: array
+        maxItems: 2
+        items:
+          $ref: "#/definitions/Authorisation1Choice"
+        description: As defined in ISO20022 standard
+      NbOfTxs:
+        $ref: "#/definitions/Max15NumericText"
+        description: Number of individual transactions contained in the message. Should
+          be set to 1
+      CtrlSum:
+        $ref: "#/definitions/DecimalNumber"
+        description: Number of individual transactions contained in the message.
+      FwdgAgt:
+        $ref: "#/definitions/BranchAndFinancialInstitutionIdentification5"
+    additionalProperties: false
+    required:
+      - MsgId
+      - CreDtTm
+      - NbOfTxs
+      - CtrlSum
+    title: GroupHeader48
+  InstructionForCreditorAgent1:
+    description: Instruction For Creditor Agent
+    type: object
+    properties:
+      Cd:
+        $ref: "#/definitions/Instruction3Code"
+      InstrInf:
+        $ref: "#/definitions/Max140Text"
+    additionalProperties: false
+    title: InstructionForCreditorAgent1
+  LocalInstrument2Choice:
+    description: Local Instrument Choice
+    type: object
+    properties:
+      Cd:
+        $ref: "#/definitions/ExternalLocalInstrument1Code"
+      Prtry:
+        $ref: "#/definitions/Max35Text"
+    minProperties: 1
+    maxProperties: 1
+    additionalProperties: false
+    title: LocalInstrument2Choice
+  NameAndAddress10:
+    description: Name And Address
+    type: object
+    properties:
+      Nm:
+        $ref: "#/definitions/Max140Text"
+      Adr:
+        $ref: "#/definitions/PostalAddress6"
+    required:
+      - Nm
+      - Adr
+    additionalProperties: false
+    title: NameAndAddress10
+  OrganisationIdentification8:
+    description: Organisation Identification
+    type: object
+    properties:
+      AnyBIC:
+        $ref: "#/definitions/AnyBICIdentifier"
+      Othr:
+        type: array
+        items:
+          $ref: "#/definitions/GenericOrganisationIdentification1"
+        description: As defined in ISO20022 standard
+    additionalProperties: false
+    title: OrganisationIdentification8
+  OrganisationIdentificationSchemeName1Choice:
+    description: Organisation Identification Scheme Name Choice
+    type: object
+    properties:
+      Cd:
+        $ref: "#/definitions/ExternalOrganisationIdentification1Code"
+      Prtry:
+        $ref: "#/definitions/Max35Text"
+    minProperties: 1
+    maxProperties: 1
+    additionalProperties: false
+    title: OrganisationIdentificationSchemeName1Choice
+  Party11Choice:
+    description: Party Choice
+    type: object
+    properties:
+      OrgId:
+        $ref: "#/definitions/OrganisationIdentification8"
+      PrvtId:
+        $ref: "#/definitions/PersonIdentification5"
+    additionalProperties: false
+    title: Party11Choice
+  PartyIdentification43:
+    description: Party Identification
+    type: object
+    properties:
+      Nm:
+        $ref: "#/definitions/Max140Text"
+      PstlAdr:
+        $ref: "#/definitions/PostalAddress6"
+      Id:
+        $ref: "#/definitions/Party11Choice"
+      CtryOfRes:
+        $ref: "#/definitions/CountryCode"
+      CtctDtls:
+        $ref: "#/definitions/ContactDetails2"
+    additionalProperties: false
+    title: PartyIdentification43
+  Party40Choice:
+    description: Party Choice
+    type: object
+    properties:
+      Pty:
+        $ref: "#/definitions/PartyIdentification43"
+      Agt:
+        $ref: "#/definitions/BranchAndFinancialInstitutionIdentification5"
+    additionalProperties: false
+    title: Party40Choice
+  PaymentIdentification1:
+    description: Payment Identification
+    type: object
+    properties:
+      InstrId:
+        $ref: "#/definitions/Max35Text"
+      EndToEndId:
+        $ref: "#/definitions/Max35Text"
+    additionalProperties: false
+    title: PaymentIdentification1
+  PaymentIdentificationModification1:
+    description: Payment Identification
+    type: object
+    properties:
+      InstrId:
+        $ref: "#/definitions/Max35Text"
+    additionalProperties: false
+    title: PaymentIdentificationModification1
+  PaymentInstruction16:
+    description: Payment Instruction
+    type: object
+    properties:
+      PmtInfId:
+        $ref: "#/definitions/Max35Text"
+      PmtMtd:
+        $ref: "#/definitions/PaymentMethod3Code"
+        description: Specifies the transfer method that will be used to transfer an
+          amount of money. Must be TRF
+      BtchBookg:
+        $ref: "#/definitions/BatchBookingIndicator"
+      NbOfTxs:
+        $ref: "#/definitions/Max15NumericText"
+        description: Number of individual transactions contained in the message. Should
+          be set to 1
+      CtrlSum:
+        $ref: "#/definitions/DecimalNumber"
+        description: Number of individual transactions contained in the message.
+      PmtTpInf:
+        $ref: "#/definitions/PaymentTypeInformation19"
+      ReqdExctnDt:
+        $ref: "#/definitions/DateAndDateTime2Choice"
+      PoolgAdjstmntDt:
+        $ref: "#/definitions/ISODate"
+      Dbtr:
+        $ref: "#/definitions/PartyIdentification43"
+      DbtrAcct:
+        $ref: "#/definitions/CashAccount24"
+      DbtrAgt:
+        $ref: "#/definitions/BranchAndFinancialInstitutionIdentification5"
+      DbtrAgtAcct:
+        $ref: "#/definitions/CashAccount24"
+      InstrForDbtrAgt:
+        $ref: "#/definitions/Max140Text"
+      UltmtDbtr:
+        $ref: "#/definitions/PartyIdentification43"
+      ChrgBr:
+        $ref: "#/definitions/ChargeBearerType1Code"
+      ChrgsAcct:
+        $ref: "#/definitions/CashAccount24"
+      ChrgsAcctAgt:
+        $ref: "#/definitions/BranchAndFinancialInstitutionIdentification5"
+      CdtTrfTxInf:
+        type: array
+        minItems: 1
+        maxItems: 1
+        items:
+          $ref: "#/definitions/CreditTransferTransaction20"
+        description: As defined in ISO20022 standard
+    required:
+      - PmtInfId
+      - PmtMtd
+      - ReqdExctnDt
+      - Dbtr
+      - DbtrAcct
+      - DbtrAgt
+      - CdtTrfTxInf
+    additionalProperties: false
+    title: PaymentInstruction16
+  ModificationInstruction16:
+    description: Payment Instruction
+    type: object
+    properties:
+      PmtInfId:
+        $ref: "#/definitions/Max35Text"
+      PmtMtd:
+        $ref: "#/definitions/PaymentMethod3Code"
+        description: Specifies the transfer method that will be used to transfer an
+          amount of money. Must be TRF
+      BtchBookg:
+        $ref: "#/definitions/BatchBookingIndicator"
+      NbOfTxs:
+        $ref: "#/definitions/Max15NumericText"
+        description: Number of individual transactions contained in the message. Should
+          be set to 1
+      CtrlSum:
+        $ref: "#/definitions/DecimalNumber"
+        description: Number of individual transactions contained in the message.
+      PmtTpInf:
+        $ref: "#/definitions/PaymentTypeInformation19"
+      ReqdExctnDt:
+        $ref: "#/definitions/DateAndDateTime2Choice"
+      PoolgAdjstmntDt:
+        $ref: "#/definitions/ISODate"
+      Dbtr:
+        $ref: "#/definitions/PartyIdentification43"
+      DbtrAcct:
+        $ref: "#/definitions/CashAccount24"
+      DbtrAgtAcct:
+        $ref: "#/definitions/CashAccount24"
+      InstrForDbtrAgt:
+        $ref: "#/definitions/Max140Text"
+      UltmtDbtr:
+        $ref: "#/definitions/PartyIdentification43"
+      ChrgBr:
+        $ref: "#/definitions/ChargeBearerType1Code"
+      ChrgsAcct:
+        $ref: "#/definitions/CashAccount24"
+      ChrgsAcctAgt:
+        $ref: "#/definitions/BranchAndFinancialInstitutionIdentification5"
+      CdtTrfTxInf:
+        type: array
+        minItems: 1
+        maxItems: 1
+        items:
+          $ref: "#/definitions/CreditTransferTransactionModification20"
+        description: As defined in ISO20022 standard
+    additionalProperties: false
+    required:
+      - PmtInfId
+      - PmtMtd
+      - ReqdExctnDt
+      - ChrgBr
+      - CdtTrfTxInf
+    title: ModificationInstruction16
+  PaymentTypeInformation19:
+    type: object
+    properties:
+      InstrPrty:
+        $ref: "#/definitions/Priority2Code"
+      SvcLvl:
+        $ref: "#/definitions/ServiceLevel8Choice"
+      LclInstrm:
+        $ref: "#/definitions/LocalInstrument2Choice"
+      CtgyPurp:
+        $ref: "#/definitions/CategoryPurpose1Choice"
+    additionalProperties: false
+    description: As defined in ISO20022 standard
+    title: PaymentTypeInformation19
+  PersonIdentification5:
+    type: object
+    properties:
+      DtAndPlcOfBirth:
+        $ref: "#/definitions/DateAndPlaceOfBirth"
+      Othr:
+        type: array
+        items:
+          $ref: "#/definitions/GenericPersonIdentification1"
+        description: As defined in ISO20022 standard
+    additionalProperties: false
+    description: As defined in ISO20022 standard
+    title: PersonIdentification5
+  PersonIdentificationSchemeName1Choice:
+    type: object
+    properties:
+      Cd:
+        $ref: "#/definitions/ExternalPersonIdentification1Code"
+      Prtry:
+        $ref: "#/definitions/Max35Text"
+    minProperties: 1
+    maxProperties: 1
+    additionalProperties: false
+    description: As defined in ISO20022 standard
+    title: PersonIdentificationSchemeName1Choice
+  PostalAddress6:
+    type: object
+    properties:
+      AdrTp:
+        $ref: "#/definitions/AddressType2Code"
+      Dept:
+        $ref: "#/definitions/Max70Text"
+      SubDept:
+        $ref: "#/definitions/Max70Text"
+      BldgNb:
+        $ref: "#/definitions/Max16Text"
+      BldgNm:
+        $ref: "#/definitions/Max16Text"
+      StrtNm:
+        $ref: "#/definitions/Max70Text"
+      Flr:
+        $ref: "#/definitions/Max70Text"
+      PstBx:
+        $ref: "#/definitions/Max70Text"
+      Room:
+        $ref: "#/definitions/Max70Text"
+      PstCd:
+        $ref: "#/definitions/Max16Text"
+      TwnNm:
+        $ref: "#/definitions/Max35Text"
+      TwnLctnNm:
+        $ref: "#/definitions/Max35Text"
+      DstrctNm:
+        $ref: "#/definitions/Max35Text"
+      CtrySubDvsn:
+        $ref: "#/definitions/Max35Text"
+      Ctry:
+        $ref: "#/definitions/CountryCode"
+      AdrLine:
+        type: array
+        maxItems: 7
+        items:
+          $ref: "#/definitions/Max70Text"
+        description: As defined in ISO20022 standard
+    additionalProperties: false
+    description: As defined in ISO20022 standard
+    title: PostalAddress6
+  Purpose2Choice:
+    type: object
+    properties:
+      Cd:
+        $ref: "#/definitions/ExternalPurpose1Code"
+      Prtry:
+        $ref: "#/definitions/Max35Text"
+    minProperties: 1
+    maxProperties: 1
+    additionalProperties: false
+    description: As defined in ISO20022 standard
+    title: Purpose2Choice
+  ReferredDocumentInformation6:
+    type: object
+    properties:
+      Tp:
+        $ref: "#/definitions/ReferredDocumentType4"
+      Nb:
+        $ref: "#/definitions/Max35Text"
+      RltdDt:
+        $ref: "#/definitions/ISODate"
+    additionalProperties: false
+    description: As defined in ISO20022 standard
+    title: ReferredDocumentInformation6
+  ReferredDocumentType3Choice:
+    type: object
+    properties:
+      Cd:
+        $ref: "#/definitions/DocumentType6Code"
+      Prtry:
+        $ref: "#/definitions/Max35Text"
+    minProperties: 1
+    maxProperties: 1
+    additionalProperties: false
+    description: As defined in ISO20022 standard
+    title: ReferredDocumentType3Choice
+  ReferredDocumentType4:
+    type: object
+    properties:
+      CdOrPrtry:
+        $ref: "#/definitions/ReferredDocumentType3Choice"
+      Issr:
+        $ref: "#/definitions/Max35Text"
+    additionalProperties: false
+    description: As defined in ISO20022 standard
+    title: ReferredDocumentType4
+  RegulatoryAuthority2:
+    type: object
+    properties:
+      Nm:
+        $ref: "#/definitions/Max140Text"
+      Ctry:
+        $ref: "#/definitions/CountryCode"
+    additionalProperties: false
+    description: As defined in ISO20022 standard
+    title: RegulatoryAuthority2
+  RegulatoryReporting3:
+    type: object
+    properties:
+      DbtCdtRptgInd:
+        $ref: "#/definitions/RegulatoryReportingType1Code"
+      Authrty:
+        $ref: "#/definitions/RegulatoryAuthority2"
+      Dtls:
+        type: array
+        items:
+          $ref: "#/definitions/StructuredRegulatoryReporting3"
+        description: As defined in ISO20022 standard
+    additionalProperties: false
+    description: As defined in ISO20022 standard
+    title: RegulatoryReporting3
+  RemittanceAmount2:
+    type: object
+    properties:
+      DuePyblAmt:
+        $ref: "#/definitions/ActiveOrHistoricCurrencyAndAmount"
+      DscntApldAmt:
+        type: array
+        items:
+          $ref: "#/definitions/DiscountAmountAndType1"
+        description: As defined in ISO20022 standard
+      CdtNoteAmt:
+        $ref: "#/definitions/ActiveOrHistoricCurrencyAndAmount"
+      TaxAmt:
+        type: array
+        items:
+          $ref: "#/definitions/TaxAmountAndType1"
+        description: As defined in ISO20022 standard
+      AdjstmntAmtAndRsn:
+        type: array
+        items:
+          $ref: "#/definitions/DocumentAdjustment1"
+        description: As defined in ISO20022 standard
+      RmtdAmt:
+        $ref: "#/definitions/ActiveOrHistoricCurrencyAndAmount"
+    additionalProperties: false
+    description: As defined in ISO20022 standard
+    title: RemittanceAmount2
+  RemittanceInformation10:
+    type: object
+    properties:
+      Ustrd:
+        type: array
+        items:
+          $ref: "#/definitions/Max140Text"
+        description: As defined in ISO20022 standard
+      Strd:
+        type: array
+        items:
+          $ref: "#/definitions/StructuredRemittanceInformation12"
+        description: As defined in ISO20022 standard
+    additionalProperties: false
+    description: As defined in ISO20022 standard
+    title: RemittanceInformation10
+  RemittanceLocation4:
+    type: object
+    properties:
+      RmtId:
+        $ref: "#/definitions/Max35Text"
+      RmtLctnDtls:
+        type: array
+        items:
+          $ref: "#/definitions/RemittanceLocationDetails1"
+        description: As defined in ISO20022 standard
+    additionalProperties: false
+    description: As defined in ISO20022 standard
+    title: RemittanceLocation4
+  RemittanceLocationDetails1:
+    type: object
+    properties:
+      Mtd:
+        $ref: "#/definitions/RemittanceLocationMethod2Code"
+      ElctrncAdr:
+        $ref: "#/definitions/Max2048Text"
+      PstlAdr:
+        $ref: "#/definitions/NameAndAddress10"
+    required:
+      - Mtd
+    additionalProperties: false
+    description: As defined in ISO20022 standard
+    title: RemittanceLocationDetails1
+  ServiceLevel8Choice:
+    type: object
+    properties:
+      Cd:
+        $ref: "#/definitions/ExternalServiceLevel1Code"
+      Prtry:
+        $ref: "#/definitions/Max35Text"
+    minProperties: 1
+    maxProperties: 1
+    additionalProperties: false
+    description: As defined in ISO20022 standard
+    title: ServiceLevel8Choice
+  StructuredRegulatoryReporting3:
+    type: object
+    properties:
+      Tp:
+        $ref: "#/definitions/Max35Text"
+      Dt:
+        $ref: "#/definitions/ISODate"
+      Ctry:
+        $ref: "#/definitions/CountryCode"
+      Cd:
+        $ref: "#/definitions/Max10Text"
+      Amt:
+        $ref: "#/definitions/ActiveOrHistoricCurrencyAndAmount"
+      Inf:
+        type: array
+        items:
+          $ref: "#/definitions/Max35Text"
+        description: As defined in ISO20022 standard
+    additionalProperties: false
+    description: As defined in ISO20022 standard
+    title: StructuredRegulatoryReporting3
+  StructuredRemittanceInformation12:
+    type: object
+    properties:
+      RfrdDocInf:
+        type: array
+        items:
+          $ref: "#/definitions/ReferredDocumentInformation6"
+        description: As defined in ISO20022 standard
+      RfrdDocAmt:
+        $ref: "#/definitions/RemittanceAmount2"
+      CdtrRefInf:
+        $ref: "#/definitions/CreditorReferenceInformation2"
+      Invcr:
+        $ref: "#/definitions/PartyIdentification43"
+      Invcee:
+        $ref: "#/definitions/PartyIdentification43"
+      TaxRmt:
+        $ref: "#/definitions/TaxInformation4"
+      GrnshmtRmt:
+        $ref: "#/definitions/Garnishment1"
+      AddtlRmtInf:
+        type: array
+        maxItems: 3
+        items:
+          $ref: "#/definitions/Max140Text"
+        description: As defined in ISO20022 standard
+    additionalProperties: false
+    description: As defined in ISO20022 standard
+    title: StructuredRemittanceInformation12
+  SupplementaryData1:
+    type: object
+    description: Provided information will be sent as is
+    properties:
+      PlcAndNm:
+        $ref: "#/definitions/Max350Text"
+      Envlp:
+        $ref: "#/definitions/SupplementaryDataEnvelope1"
+    additionalProperties: false
+    title: SupplementaryData1
+  SupplementaryDataEnvelope1:
+    type: object
+    description: As defined in ISO20022 standard
+    title: SupplementaryDataEnvelope1
+    x-finastra-data-classification:
+      - Restricted
+  TaxAmount1:
+    type: object
+    properties:
+      Rate:
+        $ref: "#/definitions/PercentageRate"
+      TaxblBaseAmt:
+        $ref: "#/definitions/ActiveOrHistoricCurrencyAndAmount"
+      TtlAmt:
+        $ref: "#/definitions/ActiveOrHistoricCurrencyAndAmount"
+      Dtls:
+        type: array
+        items:
+          $ref: "#/definitions/TaxRecordDetails1"
+        description: As defined in ISO20022 standard
+    additionalProperties: false
+    description: As defined in ISO20022 standard
+    title: TaxAmount1
+  TaxAmountAndType1:
+    type: object
+    properties:
+      Tp:
+        $ref: "#/definitions/TaxAmountType1Choice"
+      Amt:
+        $ref: "#/definitions/ActiveOrHistoricCurrencyAndAmount"
+    required:
+      - Amt
+    additionalProperties: false
+    description: As defined in ISO20022 standard
+    title: TaxAmountAndType1
+  TaxAmountType1Choice:
+    type: object
+    properties:
+      Cd:
+        $ref: "#/definitions/ExternalTaxAmountType1Code"
+      Prtry:
+        $ref: "#/definitions/Max35Text"
+    minProperties: 1
+    maxProperties: 1
+    additionalProperties: false
+    description: As defined in ISO20022 standard
+    title: TaxAmountType1Choice
+  TaxAuthorisation1:
+    type: object
+    properties:
+      Titl:
+        $ref: "#/definitions/Max35Text"
+      Nm:
+        $ref: "#/definitions/Max140Text"
+    additionalProperties: false
+    description: As defined in ISO20022 standard
+    title: TaxAuthorisation1
+  TaxInformation3:
+    type: object
+    properties:
+      Cdtr:
+        $ref: "#/definitions/TaxParty1"
+      Dbtr:
+        $ref: "#/definitions/TaxParty2"
+      AdmstnZn:
+        $ref: "#/definitions/Max35Text"
+      RefNb:
+        $ref: "#/definitions/Max140Text"
+      Mtd:
+        $ref: "#/definitions/Max35Text"
+      TtlTaxblBaseAmt:
+        $ref: "#/definitions/ActiveOrHistoricCurrencyAndAmount"
+      TtlTaxAmt:
+        $ref: "#/definitions/ActiveOrHistoricCurrencyAndAmount"
+      Dt:
+        $ref: "#/definitions/ISODate"
+      SeqNb:
+        $ref: "#/definitions/Number"
+      Rcrd:
+        type: array
+        items:
+          $ref: "#/definitions/TaxRecord1"
+        description: As defined in ISO20022 standard
+    additionalProperties: false
+    description: As defined in ISO20022 standard
+    title: TaxInformation3
+  TaxInformation4:
+    type: object
+    properties:
+      Cdtr:
+        $ref: "#/definitions/TaxParty1"
+      Dbtr:
+        $ref: "#/definitions/TaxParty2"
+      UltmtDbtr:
+        $ref: "#/definitions/TaxParty2"
+      AdmstnZone:
+        $ref: "#/definitions/Max35Text"
+      RefNb:
+        $ref: "#/definitions/Max140Text"
+      Mtd:
+        $ref: "#/definitions/Max35Text"
+      TtlTaxblBaseAmt:
+        $ref: "#/definitions/ActiveOrHistoricCurrencyAndAmount"
+      TtlTaxAmt:
+        $ref: "#/definitions/ActiveOrHistoricCurrencyAndAmount"
+      Dt:
+        $ref: "#/definitions/ISODate"
+      SeqNb:
+        $ref: "#/definitions/Number"
+      Rcrd:
+        type: array
+        items:
+          $ref: "#/definitions/TaxRecord1"
+        description: As defined in ISO20022 standard
+    additionalProperties: false
+    description: As defined in ISO20022 standard
+    title: TaxInformation4
+  TaxParty1:
+    type: object
+    properties:
+      TaxId:
+        $ref: "#/definitions/Max35Text"
+      RegnId:
+        $ref: "#/definitions/Max35Text"
+      TaxTp:
+        $ref: "#/definitions/Max35Text"
+    additionalProperties: false
+    description: As defined in ISO20022 standard
+    title: TaxParty1
+  TaxParty2:
+    type: object
+    properties:
+      TaxId:
+        $ref: "#/definitions/Max35Text"
+      RegnId:
+        $ref: "#/definitions/Max35Text"
+      TaxTp:
+        $ref: "#/definitions/Max35Text"
+      Authstn:
+        $ref: "#/definitions/TaxAuthorisation1"
+    additionalProperties: false
+    description: As defined in ISO20022 standard
+    title: TaxParty2
+  TaxPeriod1:
+    type: object
+    properties:
+      Yr:
+        $ref: "#/definitions/ISODate"
+      Tp:
+        $ref: "#/definitions/TaxRecordPeriod1Code"
+      FrToDt:
+        $ref: "#/definitions/DatePeriodDetails"
+    additionalProperties: false
+    description: As defined in ISO20022 standard
+    title: TaxPeriod1
+  TaxRecord1:
+    type: object
+    properties:
+      Tp:
+        $ref: "#/definitions/Max35Text"
+      Ctgy:
+        $ref: "#/definitions/Max35Text"
+      CtgyDtls:
+        $ref: "#/definitions/Max35Text"
+      DbtrSts:
+        $ref: "#/definitions/Max35Text"
+      CertId:
+        $ref: "#/definitions/Max35Text"
+      FrmsCd:
+        $ref: "#/definitions/Max35Text"
+      Prd:
+        $ref: "#/definitions/TaxPeriod1"
+      TaxAmt:
+        $ref: "#/definitions/TaxAmount1"
+      AddtlInf:
+        $ref: "#/definitions/Max140Text"
+    additionalProperties: false
+    description: As defined in ISO20022 standard
+    title: TaxRecord1
+  TaxRecordDetails1:
+    type: object
+    properties:
+      Prd:
+        $ref: "#/definitions/TaxPeriod1"
+      Amt:
+        $ref: "#/definitions/ActiveOrHistoricCurrencyAndAmount"
+    additionalProperties: false
+    description: As defined in ISO20022 standard
+    title: TaxRecordDetails1
+  ActiveOrHistoricCurrencyAndAmount_SimpleType:
+    description: Active Or Historic Currency And Amount Simple Type
+    type: number
+    title: ActiveOrHistoricCurrencyAndAmount_SimpleType
+  ActiveOrHistoricCurrencyCode:
+    description: Active Or Historic Currency Code following ISO 4217
+    type: string
+    pattern: "[A-Z]{3,3}"
+    example: USD
+    title: ActiveOrHistoricCurrencyCode
+  AddressType2Code:
+    description: Address Type 2 Code
+    type: string
+    enum:
+      - ADDR
+      - PBOX
+      - HOME
+      - BIZZ
+      - MLTO
+      - DLVY
+    title: AddressType2Code
+  AnyBICIdentifier:
+    description: Any BIC Identifier
+    type: string
+    pattern: "[A-Z]{6,6}[A-Z2-9][A-NP-Z0-9]([A-Z0-9]{3,3}){0,1}"
+    title: AnyBICIdentifier
+  Authorisation1Code:
+    type: string
+    description: Authorisation Code
+    enum:
+      - AUTH
+      - FDET
+      - FSUM
+      - ILEV
+    title: Authorisation1Code
+  BICFIIdentifier:
+    description: BICFI Identifier
+    type: string
+    pattern: "[A-Z]{6,6}[A-Z2-9][A-NP-Z0-9]([A-Z0-9]{3,3}){0,1}"
+    title: BICFIIdentifier
+  BaseOneRate:
+    description: Base One Rate
+    type: number
+    title: BaseOneRate
+  BatchBookingIndicator:
+    description: Batch Booking Indicator
+    type: boolean
+    title: BatchBookingIndicator
+  ChargeBearerType1Code:
+    description: Charge Bearer Type Code
+    type: string
+    enum:
+      - DEBT
+      - CRED
+      - SHAR
+      - SLEV
+    title: ChargeBearerType1Code
+  ChequeDelivery1Code:
+    description: Cheque Delivery Code
+    type: string
+    enum:
+      - MLDB
+      - MLCD
+      - MLFA
+      - CRDB
+      - CRCD
+      - CRFA
+      - PUDB
+      - PUCD
+      - PUFA
+      - RGDB
+      - RGCD
+      - RGFA
+    title: ChequeDelivery1Code
+  Frequency6Code:
+    description: Frequency Code
+    type: string
+    enum:
+      - YEAR
+      - MNTH
+      - QURT
+      - MIAN
+      - WEEK
+      - DAIL
+      - ADHO
+      - INDA
+      - FRTN
+    title: Frequency6Code
+  ChequeType2Code:
+    description: Cheque Type Code
+    type: string
+    enum:
+      - CCHQ
+      - CCCH
+      - BCHQ
+      - DRFT
+      - ELDR
+    title: ChequeType2Code
+  SequenceType3Code:
+    description: Sequence Type Code
+    type: string
+    enum:
+      - FRST
+      - RCUR
+      - FNAL
+      - OOFF
+      - RPRE
+    title: SequenceType3Code
+  SettlementMethod1Code:
+    description: Settlement Method Code
+    type: string
+    enum:
+      - INDA
+      - INGA
+      - COVE
+      - CLRG
+    title: SettlementMethod1Code
+  CountryCode:
+    description: Country Code
+    type: string
+    pattern: "[A-Z]{2,2}"
+    title: CountryCode
+  CreditDebitCode:
+    description: Credit Debit Code
+    type: string
+    enum:
+      - CRDT
+      - DBIT
+    title: CreditDebitCode
+  DecimalNumber:
+    description: Decimal Number
+    type: number
+    title: DecimalNumber
+  DocumentType3Code:
+    description: Document Type Code
+    type: string
+    enum:
+      - RADM
+      - RPIN
+      - FXDR
+      - DISP
+      - PUOR
+      - SCOR
+    title: DocumentType3Code
+  PaymentMethod4Code:
+    description: Payment Method Code
+    type: string
+    enum:
+      - CHK
+      - TRF
+      - DD
+      - TRA
+    title: PaymentMethod4Code
+  DocumentType6Code:
+    description: Document Type Code
+    type: string
+    enum:
+      - MSIN
+      - CNFA
+      - DNFA
+      - CINV
+      - CREN
+      - DEBN
+      - HIRI
+      - SBIN
+      - CMCN
+      - SOAC
+      - DISP
+      - BOLD
+      - VCHR
+      - AROI
+      - TSUT
+      - PUOR
+    title: DocumentType6Code
+  ExchangeRateType1Code:
+    description: Exchange Rate Type Code
+    type: string
+    enum:
+      - SPOT
+      - SALE
+      - AGRD
+    title: ExchangeRateType1Code
+  ExternalAccountIdentification1Code:
+    type: string
+    minLength: 1
+    maxLength: 4
+    description: As defined in ISO20022 standard
+    title: ExternalAccountIdentification1Code
+  Max1025Text:
+    type: string
+    minLength: 1
+    maxLength: 1025
+    description: As defined in ISO20022 standard
+    title: Max1025Text
+  ExternalCashAccountType1Code:
+    type: string
+    minLength: 1
+    maxLength: 4
+    description: As defined in ISO20022 standard
+    title: ExternalCashAccountType1Code
+  ExternalCategoryPurpose1Code:
+    type: string
+    minLength: 1
+    maxLength: 4
+    description: As defined in ISO20022 standard
+    title: ExternalCategoryPurpose1Code
+  ExternalClearingSystemIdentification1Code:
+    type: string
+    minLength: 1
+    maxLength: 5
+    description: As defined in ISO20022 standard
+    title: ExternalClearingSystemIdentification1Code
+  ExternalDiscountAmountType1Code:
+    type: string
+    minLength: 1
+    maxLength: 4
+    description: As defined in ISO20022 standard
+    title: ExternalDiscountAmountType1Code
+  ExternalFinancialInstitutionIdentification1Code:
+    type: string
+    minLength: 1
+    maxLength: 4
+    description: As defined in ISO20022 standard
+    title: ExternalFinancialInstitutionIdentification1Code
+  ExternalCashClearingSystem1Code:
+    type: string
+    minLength: 1
+    maxLength: 3
+    description: As defined in ISO20022 standard
+    title: ExternalCashClearingSystem1Code
+  ExternalGarnishmentType1Code:
+    type: string
+    minLength: 1
+    maxLength: 4
+    description: As defined in ISO20022 standard
+    title: ExternalGarnishmentType1Code
+  ExternalLocalInstrument1Code:
+    type: string
+    minLength: 1
+    maxLength: 35
+    description: As defined in ISO20022 standard
+    title: ExternalLocalInstrument1Code
+  ExternalOrganisationIdentification1Code:
+    type: string
+    minLength: 1
+    maxLength: 4
+    description: As defined in ISO20022 standard
+    title: ExternalOrganisationIdentification1Code
+  ExternalPersonIdentification1Code:
+    type: string
+    minLength: 1
+    maxLength: 4
+    description: As defined in ISO20022 standard
+    title: ExternalPersonIdentification1Code
+  ExternalPurpose1Code:
+    type: string
+    minLength: 1
+    maxLength: 4
+    description: As defined in ISO20022 standard
+    title: ExternalPurpose1Code
+  ExternalMandateSetupReason1Code:
+    type: string
+    minLength: 1
+    maxLength: 4
+    description: As defined in ISO20022 standard
+    title: ExternalMandateSetupReason1Code
+  ExternalServiceLevel1Code:
+    type: string
+    minLength: 1
+    maxLength: 4
+    description: As defined in ISO20022 standard
+    title: ExternalServiceLevel1Code
+  ExternalTaxAmountType1Code:
+    type: string
+    minLength: 1
+    maxLength: 4
+    description: As defined in ISO20022 standard
+    title: ExternalTaxAmountType1Code
+  ExternalStatusReason1Code:
+    type: string
+    minLength: 1
+    maxLength: 4
+    description: As defined in ISO20022 standard
+    title: ExternalStatusReason1Code
+  IBAN2007Identifier:
+    type: string
+    pattern: "[A-Z]{2,2}[0-9]{2,2}[a-zA-Z0-9]{1,30}"
+    description: As defined in ISO20022 standard
+    title: IBAN2007Identifier
+  ISODate:
+    type: string
+    pattern: ^[0-9]{4}-[0-9]{2}-[0-9]{2}.*$
+    description: As defined in ISO20022 standard
+    title: ISODate
+  ISODateTime:
+    type: string
+    pattern: ^\d{4}-(?:0[0-9]{1}|1[0-2]{1})-(0?[1-9]|[12][0-9]|3[01])[tT
+      ]\d{2}:\d{2}:\d{2}(\.\d{3}([zZ]|[+-]\d{2}:\d{2})?|[zZ]|[+-]\d{2}:\d{2})$
+    description: As defined in ISO20022 standard
+    title: ISODateTime
+  DateAndDateTime2Choice:
+    type: object
+    properties:
+      Dt:
+        $ref: "#/definitions/ISODate"
+      DtTm:
+        $ref: "#/definitions/ISODateTime"
+    additionalProperties: false
+    description: As defined in ISO20022 standards
+  Instruction3Code:
+    type: string
+    enum:
+      - CHQB
+      - HOLD
+      - PHOB
+      - TELB
+      - PRTK
+      - TOKN
+      - VLTK
+    description: As defined in ISO20022 standard
+    title: Instruction3Code
+  ClearingChannel2Code:
+    type: string
+    enum:
+      - RTGS
+      - RTNS
+      - MPNS
+      - BOOK
+    description: As defined in ISO20022 standard
+    title: ClearingChannel2Code
+  Max10Text:
+    type: string
+    minLength: 1
+    maxLength: 10
+    description: As defined in ISO20022 standard
+    title: Max10Text
+    x-finastra-data-classification:
+      - Restricted
+  Max128Text:
+    type: string
+    minLength: 1
+    maxLength: 128
+    description: As defined in ISO20022 standard
+    title: Max128Text
+    x-finastra-data-classification:
+      - Restricted
+  Max140Text:
+    type: string
+    minLength: 1
+    maxLength: 140
+    description: As defined in ISO20022 standard
+    title: Max140Text
+    x-finastra-data-classification:
+      - Restricted
+  Max15NumericText:
+    type: string
+    pattern: "[0-9]{1,15}"
+    description: As defined in ISO20022 standard
+    title: Max15NumericText
+  Max16Text:
+    type: string
+    minLength: 1
+    maxLength: 16
+    description: As defined in ISO20022 standard
+    title: Max16Text
+  Max2048Text:
+    type: string
+    minLength: 1
+    maxLength: 2048
+    description: As defined in ISO20022 standard
+    title: Max2048Text
+    x-finastra-data-classification:
+      - Restricted
+  Max34Text:
+    type: string
+    minLength: 1
+    maxLength: 34
+    description: As defined in ISO20022 standard
+    title: Max34Text
+  Max350Text:
+    type: string
+    minLength: 1
+    maxLength: 350
+    description: As defined in ISO20022 standard
+    title: Max350Text
+    x-finastra-data-classification:
+      - Restricted
+  Max35Text:
+    type: string
+    minLength: 1
+    maxLength: 35
+    description: As defined in ISO20022 standard
+    title: Max35Text
+    x-finastra-data-classification:
+      - Restricted
+  Max105Text:
+    type: string
+    minLength: 1
+    maxLength: 105
+    description: As defined in ISO20022 standard
+    title: Max105Text
+  Max4Text:
+    type: string
+    minLength: 1
+    maxLength: 4
+    description: As defined in ISO20022 standard
+    title: Max4Text
+  Max70Text:
+    type: string
+    minLength: 1
+    maxLength: 70
+    description: As defined in ISO20022 standard
+    title: Max70Text
+    x-finastra-data-classification:
+      - Restricted
+  NamePrefix1Code:
+    type: string
+    enum:
+      - DOCT
+      - MIST
+      - MISS
+      - MADM
+    description: As defined in ISO20022 standard
+    title: NamePrefix1Code
+  Number:
+    type: number
+    description: As defined in ISO20022 standard
+    title: Number
+  PaymentMethod3Code:
+    type: string
+    enum:
+      - CHK
+      - TRF
+      - TRA
+    description: As defined in ISO20022 standard
+    title: PaymentMethod3Code
+  PercentageRate:
+    type: number
+    description: As defined in ISO20022 standard
+    title: PercentageRate
+  PhoneNumber:
+    type: string
+    pattern: \+[0-9]{1,3}-[0-9()+\-]{1,30}
+    description: As defined in ISO20022 standard
+    title: PhoneNumber
+    x-finastra-data-classification:
+      - Restricted
+  Priority2Code:
+    type: string
+    enum:
+      - HIGH
+      - NORM
+    description: As defined in ISO20022 standard
+    title: Priority2Code
+  TransactionGroupStatus3Code:
+    type: string
+    enum:
+      - ACTC
+      - RCVD
+      - PART
+      - RJCT
+      - PDNG
+      - ACCP
+      - ACSP
+      - ACSC
+      - ACWC
+    description: As defined in ISO20022 standard
+    title: TransactionGroupStatus3Code
+  TransactionIndividualStatus3Code:
+    type: string
+    enum:
+      - ACTC
+      - RJCT
+      - PDNG
+      - ACCP
+      - ACSP
+      - ACSC
+      - ACWC
+      - CANC
+    description: As defined in ISO20022 standard
+    title: TransactionIndividualStatus3Code
+  RegulatoryReportingType1Code:
+    type: string
+    enum:
+      - CRED
+      - DEBT
+      - BOTH
+    description: As defined in ISO20022 standard
+    title: RegulatoryReportingType1Code
+  RemittanceLocationMethod2Code:
+    type: string
+    enum:
+      - FAXI
+      - EDIC
+      - URID
+      - EMAL
+      - POST
+      - SMSM
+    description: As defined in ISO20022 standard
+    title: RemittanceLocationMethod2Code
+  TaxRecordPeriod1Code:
+    type: string
+    enum:
+      - MM01
+      - MM02
+      - MM03
+      - MM04
+      - MM05
+      - MM06
+      - MM07
+      - MM08
+      - MM09
+      - MM10
+      - MM11
+      - MM12
+      - QTR1
+      - QTR2
+      - QTR3
+      - QTR4
+      - HLF1
+      - HLF2
+    description: As defined in ISO20022 standard
+    title: TaxRecordPeriod1Code
+  TrueFalseIndicator:
+    type: boolean
+    description: As defined in ISO20022 standard
+    title: TrueFalseIndicator
+  PaymentCancellationRequest:
+    type: object
+    required:
+      - cancelComment
+    description: Cancellation for the payment
+    properties:
+      cancelComment:
+        $ref: "#/definitions/CancelComment"
+    title: PaymentCancellationRequest
+  CancelComment:
+    type: string
+    description: Add resaon for Cancelling payment
+    title: cancelComment
+    maxLength: 256

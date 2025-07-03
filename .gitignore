@@ -1,3 +1,7 @@
+# Certificates & local env
+certs/
+.env.development/
+
 # Python
 __pycache__/
 *.py[cod]
