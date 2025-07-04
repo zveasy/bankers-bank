@@ -1,5 +1,11 @@
+from conftest import REQUESTS_AVAILABLE
 from bankersbank.client import BankersBankClient
 import requests
+import pytest
+
+pytestmark = pytest.mark.skipif(
+    not REQUESTS_AVAILABLE, reason="requests not installed"
+)
 
 client = BankersBankClient(base_url="http://127.0.0.1:8000", token="testtoken")
 
