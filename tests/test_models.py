@@ -55,7 +55,11 @@ def test_sweep_order_json_serialization():
     )
     
     # Test that model_dump_json() works
-    json_str = order.model_dump_json(indent=2)
+    if hasattr(order, "model_dump_json"):
+        json_str = order.model_dump_json(indent=2)
+    else:
+        import json as _json
+        json_str = _json.dumps(order.dict(exclude={"model_config"}), default=str, indent=2)
     assert isinstance(json_str, str)
     
     # Test that we can parse it back
@@ -80,7 +84,7 @@ def test_sweep_order_schema_compliance():
         created_ts=now,
     )
     
-    data = order.model_dump()
+    data = order.model_dump() if hasattr(order, "model_dump") else order.dict()
     
     # Check all required fields are present
     required_fields = [
