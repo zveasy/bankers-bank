@@ -16,9 +16,15 @@ class SweepOrder(BaseModel):
     model_config = ConfigDict(
         json_encoders={
             Decimal: str,
-            datetime: lambda v: v.isoformat()
+            datetime: lambda v: v.isoformat(),
         }
     )
+
+    class Config:
+        json_encoders = {
+            Decimal: str,
+            datetime: lambda v: v.isoformat(),
+        }
     
     order_id: str
     source_account: str

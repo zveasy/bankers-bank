@@ -201,8 +201,25 @@ For each, the mock API returns the expected error response for integration testi
       "title_status": "Clean"
     }
   ]
-}
+  }
   ```
+
+### 7. Calculate LTV (SDK helper)
+
+While the mock API does not expose a dedicated endpoint for loan‑to‑value (LTV),
+the Python SDK includes a helper that retrieves account balances and registered
+collateral to compute the ratio.
+
+```python
+from bankersbank.client import BankersBankClient
+
+client = BankersBankClient(base_url="http://127.0.0.1:8000", token="token")
+ltv = client.calculate_ltv("456783434")
+print(ltv)
+```
+
+The helper returns a dictionary containing the account ID, loan balance,
+aggregate collateral valuation and the computed `ltv` value (e.g. `0.7`).
 
 ## Mocked Error Responses
 
