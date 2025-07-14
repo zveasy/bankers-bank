@@ -88,12 +88,7 @@ class BankersBankClient:
         return resp.json()
 
     def calculate_ltv(self, account_id: str) -> Dict[str, Any]:
-        """Calculate loan-to-value for an account.
-
-        This helper fetches the account's booked balance and the list of
-        registered collateral from the mock API, returning the computed LTV
-        ratio along with the raw values.
-        """
+        """Calculate loan-to-value for an account using the mock API's /ltv/calculate endpoint."""
         balances = self.get_balances(account_id)
         booked = next(
             (b for b in balances.get("items", []) if b.get("type") == "BOOKED"),
@@ -101,7 +96,6 @@ class BankersBankClient:
         )
         if not booked:
             raise ValueError("BOOKED balance not found for account")
-
         loan_balance = float(booked.get("amount", 0))
 
         collateral_resp = self.get_collateral()
@@ -111,10 +105,18 @@ class BankersBankClient:
         if total_collateral == 0:
             raise ValueError("Total collateral valuation is zero")
 
-        ltv = loan_balance / total_collateral
+        # Call the mock API's /ltv/calculate endpoint
+        url = f"{self.base_url}/ltv/calculate"
+        resp = requests.post(
+            url,
+            json={"collateral_value": total_collateral, "loan_amount": loan_balance},
+            headers=self._headers(),
+        )
+        resp.raise_for_status()
+        ltv_result = resp.json()
         return {
             "account_id": account_id,
             "loan_balance": loan_balance,
             "total_collateral": total_collateral,
-            "ltv": ltv,
+            **ltv_result,
         }
