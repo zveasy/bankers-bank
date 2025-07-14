@@ -62,4 +62,7 @@ print(accounts)
 
 - docs/mock_api_endpoints.md
 
+Detailed instructions for obtaining OAuth tokens and calling the Finastra
+sandbox APIs are available in `docs/finastra_api.md`.
+
 Last updated: 2025-06-27
