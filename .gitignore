@@ -1,6 +1,6 @@
 # Certificates & local env
 certs/
-.env.development/
+.env.development
 
 # Python
 __pycache__/
