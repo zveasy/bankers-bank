@@ -1,0 +1,13 @@
+{
+  "items": [
+    {
+      "accountId": "456783434",
+      "accountType": "CURRENT",
+      "balances": [
+        {"type": "BOOKED", "amount": 10500.0, "currency": "USD"},
+        {"type": "AVAILABLE", "amount": 10250.0, "currency": "USD"}
+      ],
+      "owner": {"consumerId": "c123", "name": "O&L Client A"}
+    }
+  ]
+}
