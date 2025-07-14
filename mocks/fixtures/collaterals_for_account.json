@@ -1,0 +1,6 @@
+{
+  "items": [
+    {"collateralId": "col-001", "accountId": "456783434", "description": "HQ Building", "valuation": 850000.0},
+    {"collateralId": "col-002", "accountId": "456783434", "description": "Vehicle Fleet", "valuation": 200000.0}
+  ]
+}
