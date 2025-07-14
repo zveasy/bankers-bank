@@ -204,7 +204,61 @@ For each, the mock API returns the expected error response for integration testi
   }
   ```
 
-### 7. Calculate LTV (SDK helper)
+### 7. Calculate LTV
+
+**POST** `/ltv/calculate`
+
+**Sample Request Body:**
+
+```json
+{
+  "collateral_value": 100000,
+  "loan_amount": 80000
+}
+```
+
+**Sample Success Response:**
+
+```json
+{
+  "ltv": 0.8
+}
+```
+
+**Error/Edge Case Responses:**
+
+**400 Bad Request (missing fields):**
+```json
+{
+  "detail": "Missing collateral_value or loan_amount"
+}
+```
+
+**400 Bad Request (non-numeric):**
+```json
+{
+  "detail": "Values must be numeric"
+}
+```
+
+**400 Bad Request (zero/negative collateral):**
+```json
+{
+  "detail": "collateral_value must be positive"
+}
+```
+
+---
+
+### 8. Reset Collateral (Test Utility)
+
+**POST** `/collateral/reset`
+
+Resets the in-memory collateral registry for test isolation. Returns `{ "status": "reset" }`.
+
+---
+
+### 9. Calculate LTV (SDK helper)
 
 While the mock API does not expose a dedicated endpoint for loan‑to‑value (LTV),
 the Python SDK includes a helper that retrieves account balances and registered
