@@ -198,3 +198,28 @@ def post_collateral(payload: dict = Body(...)):
 @app.get("/collateral")
 def get_collateral():
     return {"items": collateral_registry}
+
+@app.post("/ltv/calculate")
+def calculate_ltv(payload: dict = Body(...)):
+    """
+    Calculate Loan-to-Value (LTV) ratio.
+    Expects JSON: {"collateral_value": float, "loan_amount": float}
+    Returns: {"ltv": float}
+    """
+    collateral_value = payload.get("collateral_value")
+    loan_amount = payload.get("loan_amount")
+    if collateral_value is None or loan_amount is None:
+        raise HTTPException(status_code=400, detail="Missing collateral_value or loan_amount")
+    if not isinstance(collateral_value, (int, float)) or not isinstance(loan_amount, (int, float)):
+        raise HTTPException(status_code=400, detail="Values must be numeric")
+    if collateral_value <= 0:
+        raise HTTPException(status_code=400, detail="collateral_value must be positive")
+    ltv = loan_amount / collateral_value
+    return {"ltv": ltv}
+
+@app.post("/collateral/reset")
+def reset_collateral():
+    """Reset the in-memory collateral registry and addresses for test isolation."""
+    collateral_registry.clear()
+    registered_addresses.clear()
+    return {"status": "reset"}
