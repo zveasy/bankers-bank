@@ -206,32 +206,13 @@ def post_collateral(payload: dict = Body(...)):
 def get_collateral():
     return {"items": collateral_registry}
 
-# --- Additional endpoints for Account Information & Collateral APIs ---
 
-SAMPLE_COLLATERAL_BY_ACCOUNT = {
-    "456783434": [
-        {
-            "collateralId": "col-001",
-            "accountId": "456783434",
-            "description": "HQ Building",
-            "valuation": 850000.0,
-        },
-        {
-            "collateralId": "col-002",
-            "accountId": "456783434",
-            "description": "Vehicle Fleet",
-            "valuation": 200000.0,
-        },
-    ]
-}
-
-
+# --- Changed here: No more SAMPLE_COLLATERAL_BY_ACCOUNT, only return test state! ---
 @app.get("/collaterals")
 def list_collaterals(accountId: str = Query(...)):
     """Return collateral items for an account."""
-    items = SAMPLE_COLLATERAL_BY_ACCOUNT.get(accountId, [])
+    items = [c for c in collateral_registry if c.get("accountId", "") == accountId or c.get("address", "") == accountId]
     return {"items": items}
-
 
 @app.get("/consumers/{consumer_id}/accounts/extendedWithDetails")
 def get_accounts_with_details(consumer_id: str):
@@ -247,7 +228,7 @@ def get_accounts_with_details(consumer_id: str):
             }
         )
     return {"items": items}
-  
+
 @app.post("/ltv/calculate")
 def calculate_ltv(payload: dict = Body(...)):
     """
