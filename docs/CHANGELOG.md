@@ -9,6 +9,14 @@ All notable changes to this project will be documented in this file. The format 
 * Python SDK helper `calculate_ltv` with accompanying unit and integration tests.
 * Documentation for LTV calculation in `docs/mock_api_endpoints.md`.
 
+## [0.2.2] - 2025-07-04
+
+### Added
+
+* OAuth2 token helper and `FinastraAPIClient`.
+* Mock endpoints and fixtures for Account & Collateral APIs.
+* Documentation in `docs/finastra_api.md`.
+
 ## \[0.2.0] - 2025‑05‑28
 
 ### Added
