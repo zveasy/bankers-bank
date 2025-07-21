@@ -1,6 +1,7 @@
 pyproject.toml
 bankersbank/__init__.py
 bankersbank/client.py
+bankersbank/finastra.py
 bankersbank.egg-info/PKG-INFO
 bankersbank.egg-info/SOURCES.txt
 bankersbank.egg-info/dependency_links.txt
