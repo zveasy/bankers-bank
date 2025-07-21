@@ -68,6 +68,9 @@ jobs:
             nc -z 127.0.0.1 8000 && break
             echo "Waiting for mock API..." && sleep 1
           done
+
+      - name: Install SDK in editable mode
+        run: pip install -e ./sdk/python
           
       - name: Run Python integration tests
         run: pytest integration-client
