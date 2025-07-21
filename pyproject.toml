@@ -4,14 +4,23 @@ version = "0.1.0"
 description = "Treasury Orchestrator for Bankers Bank"
 authors = ["Your Name <your.email@example.com>"]
 readme = "README.md"
-packages = [{include = "treasury_orchestrator"}]
+packages = [
+    {include = "treasury_orchestrator"},
+    {include = "bank_connector"},
+]
 
 [tool.poetry.dependencies]
 python = "^3.8"
 pydantic = "^2.0"
+fastapi = "^0.110"
+httpx = "^0.27"
+sqlmodel = "^0.0.16"
+pydantic-xsd = "^0.3.2"
+uvicorn = "^0.29"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.0"
+requests-mock = "^1.11"
 black = "^23.0"
 isort = "^5.0"
 mypy = "^1.0"
