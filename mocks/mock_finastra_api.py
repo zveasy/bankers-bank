@@ -104,7 +104,10 @@ def get_account(account_id: str):
 
 
 @app.get("/corporate/channels/accounts/me/v1/accounts/{account_id}/balances")
-def get_account_balances(account_id: str, error: str = None):
+def get_account_balances(account_id: str, error: str = None, authorization: str = Header(None)):
+    # Auth check: require exact token value 'Bearer dummy'
+    if not authorization or not authorization.startswith("Bearer ") or authorization != "Bearer dummy":
+        raise HTTPException(status_code=401, detail="Unauthorized")
     # Simulate error based on query
     if error == "500":
         raise HTTPException(status_code=500, detail="Simulated Internal Error")
