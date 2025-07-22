@@ -18,6 +18,8 @@ fastapi = "^0.110"
 sqlmodel = "^0.0.16"
 # pydantic-xsd = "^0.3.2"  # Temporarily removed to resolve dependency issues
 uvicorn = "^0.29"
+aiokafka = "^0.10"
+testcontainers = {version = "^4.3", extras=["redpanda"]}
 jsonschema = "^4.22"
 
 [tool.poetry.group.dev.dependencies]
