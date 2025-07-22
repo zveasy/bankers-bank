@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: quant-consumer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: quant-consumer
+  template:
+    metadata:
+      labels:
+        app: quant-consumer
+    spec:
+      containers:
+      - name: quant-consumer
+        image: {{ .Values.quant_consumer.image }}
+        envFrom:
+        - configMapRef:
+            name: bankers-bank-env
+        command: ["python", "-m", "quantengine.kafka_consumer", "redpanda:{{ .Values.redpanda.port }}"]

@@ -1,0 +1,52 @@
+version: "3.9"
+services:
+  postgres:
+    image: postgres:13
+    environment:
+      POSTGRES_USER: bank
+      POSTGRES_PASSWORD: bank
+      POSTGRES_DB: bank
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+  redpanda:
+    image: docker.redpanda.com/vectorized/redpanda:latest
+    command: |
+      redpanda start --overprovisioned --smp 1 --memory 1G --reserve-memory 0M --node-id 0 --check=false
+    ports:
+      - "9092:9092"
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+  bank_connector:
+    build: ./bank_connector
+    depends_on:
+      - postgres
+    environment:
+      DATABASE_URL: postgresql://bank:bank@postgres:5432/bank
+    ports:
+      - "8080:8080"
+    command: uvicorn bank_connector.main:app --host 0.0.0.0 --port 8080
+  treasury_orchestrator:
+    build: ./asset_aggregator
+    depends_on:
+      - postgres
+      - redpanda
+    environment:
+      ASSET_DB_URL: postgresql://bank:bank@postgres:5432/bank
+      KAFKA_BOOTSTRAP: redpanda:9092
+    ports:
+      - "9000:8000"
+    command: uvicorn asset_aggregator.api:app --host 0.0.0.0 --port 8000
+  quant_consumer:
+    build: ./quantengine
+    depends_on:
+      - redpanda
+      - redis
+    environment:
+      REDIS_URL: redis://redis:6379/0
+    command: python -m quantengine.kafka_consumer redpanda:9092
+volumes:
+  pgdata:
