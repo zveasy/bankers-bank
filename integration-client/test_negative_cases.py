@@ -1,12 +1,16 @@
 import pytest
-import requests
+import importlib.util
+import sys
+from pathlib import Path
 
-from test_helpers import REQUESTS_AVAILABLE, clear_collateral_registry
+from tests.test_helpers import REQUESTS_AVAILABLE
+from test_helpers import clear_collateral_registry
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "sdk/python"))
+
 from bankersbank.client import BankersBankClient
 
-pytestmark = pytest.mark.skipif(
-    not REQUESTS_AVAILABLE, reason="requests not installed"
-)
+pytestmark = pytest.mark.skipif(not REQUESTS_AVAILABLE, reason="requests not installed")
 
 @pytest.fixture(autouse=True)
 def _reset_registry():
