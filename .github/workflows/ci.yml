@@ -62,6 +62,8 @@ jobs:
             nc -z 127.0.0.1 8000 && break
             echo "Waiting for mock API..." && sleep 1
           done
+      - name: Add repo root to PYTHONPATH
+        run: echo "PYTHONPATH=$(pwd)" >> $GITHUB_ENV
 
       - name: Run Python integration tests with coverage
         env:
