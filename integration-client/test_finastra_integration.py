@@ -1,11 +1,18 @@
 
-import pytest
-import requests
-import json
-from bankersbank.finastra import FinastraAPIClient
-from test_helpers import REQUESTS_AVAILABLE
+import sys
 from pathlib import Path
-import jsonschema
+import pytest
+import json
+from tests.test_helpers import JSONSCHEMA_AVAILABLE, REQUESTS_AVAILABLE
+
+if JSONSCHEMA_AVAILABLE:
+    import jsonschema
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "sdk/python"))
+
+pytestmark = pytest.mark.skipif(not REQUESTS_AVAILABLE, reason="requests not installed")
+
+from bankersbank.finastra import FinastraAPIClient
 
 
 
