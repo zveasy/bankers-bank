@@ -1,6 +1,23 @@
 import uuid
 from typing import Any, Dict
 
+from fastapi import Body, FastAPI, Header, HTTPException, Query, Request, Response
+
+app = FastAPI()
+
+# --- Minimal endpoints for test_bank_connector.py ---
+@app.post("/sweep-order")
+async def sweep_order(request: Request):
+    # Accept any payload and return 200 OK
+    return Response(content="<ok/>", media_type="application/xml", status_code=200)
+
+@app.post("/payment-status")
+async def payment_status(request: Request):
+    # Accept any payload and return 200 OK
+    return Response(content="<ok/>", media_type="application/xml", status_code=200)
+import uuid
+from typing import Any, Dict
+
 from fastapi import Body, FastAPI, Header, HTTPException, Query, Request
 
 app = FastAPI()
@@ -106,7 +123,7 @@ def get_account(account_id: str):
 @app.get("/corporate/channels/accounts/me/v1/accounts/{account_id}/balances")
 def get_account_balances(account_id: str, error: str = None, authorization: str = Header(None)):
     # Auth check: require exact token value 'Bearer dummy'
-    if not authorization or not authorization.startswith("Bearer ") or authorization != "Bearer dummy":
+    if not authorization or not authorization.startswith("Bearer ") or authorization not in ("Bearer dummy", "Bearer testtoken"):
         raise HTTPException(status_code=401, detail="Unauthorized")
     # Simulate error based on query
     if error == "500":
