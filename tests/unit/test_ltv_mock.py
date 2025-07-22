@@ -1,7 +1,11 @@
 import pytest
 import os
 from sdk.python.bankersbank.client import BankersBankClient
-import requests
+from tests.test_helpers import REQUESTS_AVAILABLE
+
+pytestmark = pytest.mark.skipif(not REQUESTS_AVAILABLE, reason="requests not installed")
+if REQUESTS_AVAILABLE:
+    import requests
 
 def reset_collateral(base_url):
     # Reset the in-memory collateral registry for test isolation
