@@ -11,6 +11,7 @@ except Exception:
     stub.get = stub.post = _stub
     import sys
     sys.modules["requests"] = stub
+    requests = stub
 
 try:
     import jsonschema  # type: ignore
@@ -23,3 +24,5 @@ except Exception:
     js_stub.validate = _js_stub
     import sys
     sys.modules["jsonschema"] = js_stub
+
+__all__ = ["REQUESTS_AVAILABLE", "requests", "JSONSCHEMA_AVAILABLE"]
