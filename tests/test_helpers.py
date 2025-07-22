@@ -11,3 +11,15 @@ except Exception:
     stub.get = stub.post = _stub
     import sys
     sys.modules["requests"] = stub
+
+try:
+    import jsonschema  # type: ignore
+    JSONSCHEMA_AVAILABLE = True
+except Exception:
+    JSONSCHEMA_AVAILABLE = False
+    js_stub = types.ModuleType("jsonschema")
+    def _js_stub(*args, **kwargs):
+        raise RuntimeError("jsonschema library not available")
+    js_stub.validate = _js_stub
+    import sys
+    sys.modules["jsonschema"] = js_stub

@@ -1,8 +1,13 @@
+import importlib.util
 import pytest
-from fastapi.testclient import TestClient
-from mocks.mock_finastra_api import app
 
-client = TestClient(app)
+HTTPX_AVAILABLE = importlib.util.find_spec("httpx") is not None
+pytestmark = pytest.mark.skipif(not HTTPX_AVAILABLE, reason="httpx not installed")
+
+if HTTPX_AVAILABLE:
+    from fastapi.testclient import TestClient
+    from mocks.mock_finastra_api import app
+    client = TestClient(app)
 
 def test_ltv_calculate_valid():
     response = client.post("/ltv/calculate", json={"collateral_value": 100000, "loan_amount": 80000})
