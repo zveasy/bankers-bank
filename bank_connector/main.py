@@ -5,7 +5,7 @@ from sqlmodel import Session, select
 
 from .db import SweepOrder, init_db, get_session
 from .models import SweepOrderRequest, PaymentStatusResponse
-from .iso20022 import create_pain_001, parse_pain_002
+# from .iso20022 import create_pain_001, parse_pain_002
 
 app = FastAPI()
 
@@ -16,9 +16,10 @@ BANK_API_URL = os.getenv("BANK_API_URL", "http://localhost:9999")
 
 @app.post("/sweep-order")
 async def create_sweep_order(payload: SweepOrderRequest, session: Session = Depends(get_session)):
-    xml = create_pain_001(
-        payload.order_id, payload.amount, payload.currency, payload.debtor, payload.creditor
-    )
+    # xml = create_pain_001(
+    #     payload.order_id, payload.amount, payload.currency, payload.debtor, payload.creditor
+    # )
+    xml = "<pain.001></pain.001>"  # Stubbed XML
     async with httpx.AsyncClient() as client:
         await client.post(BANK_API_URL, data=xml, headers={"Content-Type": "application/xml"})
 
@@ -39,7 +40,8 @@ async def create_sweep_order(payload: SweepOrderRequest, session: Session = Depe
 @app.post("/payment-status")
 async def payment_status(request: Request, session: Session = Depends(get_session)) -> PaymentStatusResponse:
     xml = await request.body()
-    status = parse_pain_002(xml.decode())
+    # status = parse_pain_002(xml.decode())
+    status = "UNKNOWN"  # Stubbed status
     order_id = request.headers.get("X-Order-ID")
     result = (
         session.exec(select(SweepOrder).where(SweepOrder.order_id == order_id)).first()
