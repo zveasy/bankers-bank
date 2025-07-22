@@ -16,6 +16,7 @@ Build a regulated, capital-efficient core so regional banks can:
 | `/sdk`          | Auto-generated typed clients       |
 | `/infra`        | Terraform + Kustomize IaC          |
 | `/docs`         | Architecture, ADRs, runbooks       |
+| `/asset_aggregator` | Python service for asset snapshots |
 
 ### Quick-start
 
