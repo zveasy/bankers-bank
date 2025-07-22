@@ -2,6 +2,12 @@ import requests
 import os
 from typing import Dict, Any
 
+try:
+    # Reuse the mock API's collateral registry when available
+    from mocks.mock_finastra_api import collateral_registry as _COLLATERAL_REGISTRY
+except Exception:  # pragma: no cover - fallback for production envs
+    _COLLATERAL_REGISTRY: list[dict] = []
+
 def _use_mock() -> bool:
     """
     Returns True if we should call the local mock server
