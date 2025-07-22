@@ -1,7 +1,12 @@
-from test_helpers import *
-from bankersbank.client import BankersBankClient
+from tests.test_helpers import *
+import sys
+from pathlib import Path
 import pytest
 import uuid
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "sdk/python"))
+
+from bankersbank.client import BankersBankClient
 
 pytestmark = pytest.mark.skipif(
     not REQUESTS_AVAILABLE, reason="requests not installed"
