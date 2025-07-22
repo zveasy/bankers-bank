@@ -1,4 +1,5 @@
 from tests.test_helpers import *
+from integration_client.utils import clear_collateral_registry
 import sys
 from pathlib import Path
 import pytest
