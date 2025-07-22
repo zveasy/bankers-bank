@@ -1,8 +1,13 @@
 import json
+import importlib.util
 import pytest
-from fastapi.testclient import TestClient
 
-from bank_connector.main import app
+HTTPX_AVAILABLE = importlib.util.find_spec("httpx") is not None
+pytestmark = pytest.mark.skipif(not HTTPX_AVAILABLE, reason="httpx not installed")
+
+if HTTPX_AVAILABLE:
+    from fastapi.testclient import TestClient
+    from bank_connector.main import app
 
 
 
