@@ -1,0 +1,5 @@
+apiVersion: v2
+name: bankers-bank
+version: 0.1.0
+appVersion: "0.1"
+description: Demo stack for Bankers Bank
