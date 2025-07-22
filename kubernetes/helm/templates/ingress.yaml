@@ -1,0 +1,16 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: bankers-bank
+spec:
+  rules:
+  # TODO: configure host and paths
+  - http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: bank-connector
+            port:
+              number: {{ .Values.bank_connector.port }}
