@@ -24,11 +24,12 @@ def setup_collateral_and_account(client, account_id, address="123 Main St", valu
     # No need to create account, just ensure balance exists in mock
 
 
+@pytest.mark.enable_socket
 def test_calculate_ltv_against_mock(monkeypatch):
     os.environ["USE_MOCK_BALANCES"] = "true"
     base_url = "http://localhost:8000"
     reset_collateral(base_url)
-    client = BankersBankClient(base_url)
+    client = BankersBankClient(base_url, token="dummy")
     account_id = "456783434"  # This is in SAMPLE_ACCOUNTS and SAMPLE_BALANCES
     setup_collateral_and_account(client, account_id)
     result = client.calculate_ltv(account_id)
@@ -38,22 +39,24 @@ def test_calculate_ltv_against_mock(monkeypatch):
     assert result["total_collateral"] == 100000
 
 
+@pytest.mark.enable_socket
 def test_ltv_zero_collateral(monkeypatch):
     os.environ["USE_MOCK_BALANCES"] = "true"
     base_url = "http://localhost:8000"
     reset_collateral(base_url)
-    client = BankersBankClient(base_url)
+    client = BankersBankClient(base_url, token="dummy")
     account_id = "456783434"
     # Do not add collateral
     with pytest.raises(ValueError, match="Total collateral valuation is zero"):
         client.calculate_ltv(account_id)
 
 
+@pytest.mark.enable_socket
 def test_ltv_multiple_collateral(monkeypatch):
     os.environ["USE_MOCK_BALANCES"] = "true"
     base_url = "http://localhost:8000"
     reset_collateral(base_url)
-    client = BankersBankClient(base_url)
+    client = BankersBankClient(base_url, token="dummy")
     account_id = "456783434"
     setup_collateral_and_account(client, account_id, address="1 A St", valuation=100000)
     setup_collateral_and_account(client, account_id, address="2 B St", valuation=50000)
