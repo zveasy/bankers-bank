@@ -35,6 +35,7 @@ def load_balances_schema():
 # --- /balances endpoint: happy-path, negative, edge, schema tests ---
 import itertools
 
+@pytest.mark.enable_socket
 @pytest.mark.skipif(not REQUESTS_AVAILABLE, reason="requests not installed")
 @pytest.mark.parametrize(
     "account_id,token,query_params,expected_status,desc",
