@@ -3,6 +3,7 @@ import sys
 from pathlib import Path
 import pytest
 import json
+import requests
 from tests.test_helpers import JSONSCHEMA_AVAILABLE, REQUESTS_AVAILABLE
 
 if JSONSCHEMA_AVAILABLE:

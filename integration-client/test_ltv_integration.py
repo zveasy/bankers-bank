@@ -3,6 +3,7 @@ import importlib.util
 import sys
 from pathlib import Path
 import pytest
+import requests
 
 from tests.test_helpers import REQUESTS_AVAILABLE
 from test_helpers import clear_collateral_registry
