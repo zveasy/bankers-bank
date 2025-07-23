@@ -28,6 +28,7 @@ services:
       DATABASE_URL: postgresql://bank:bank@postgres:5432/bank
     ports:
       - "8080:8080"
+      - "8001:8001"
     command: uvicorn bank_connector.main:app --host 0.0.0.0 --port 8080
   treasury_orchestrator:
     build: ./asset_aggregator
@@ -39,6 +40,7 @@ services:
       KAFKA_BOOTSTRAP: redpanda:9092
     ports:
       - "9000:8000"
+      - "8002:8001"
     command: uvicorn asset_aggregator.api:app --host 0.0.0.0 --port 8000
   quant_consumer:
     build: ./quantengine
@@ -48,5 +50,20 @@ services:
     environment:
       REDIS_URL: redis://redis:6379/0
     command: python -m quantengine.kafka_consumer redpanda:9092
+  prometheus:
+    image: prom/prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "8001:9090"
+  grafana:
+    image: grafana/grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+    volumes:
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
+      - ./grafana/provisioning:/etc/grafana/provisioning
 volumes:
   pgdata:

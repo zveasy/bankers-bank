@@ -7,6 +7,7 @@ try:  # pragma: no cover - optional dependency
 except Exception:  # pragma: no cover - APScheduler missing
     AsyncIOScheduler = None
 from sqlmodel import Session
+from treasury_observability.metrics import credit_draw_latency_seconds
 
 from bankersbank.finastra import FinastraAPIClient
 
@@ -77,7 +78,9 @@ class CreditFacilityService:
     async def draw(self, amount: float, currency: str = "USD") -> CreditTxn:
         if amount > self.available:
             raise ValueError("Insufficient capacity")
+        start = asyncio.get_event_loop().time()
         await self.jpm_client.post_draw(amount, currency)
+        credit_draw_latency_seconds.observe(asyncio.get_event_loop().time() - start)
         self.facility.drawn += amount
         txn = CreditTxn(facility_id=self.facility.id, amount=amount, txn_type="DRAW")
         self.session.add(self.facility)
