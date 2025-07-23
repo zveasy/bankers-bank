@@ -1,0 +1,107 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      containers:
+      - name: grafana
+        image: {{ .Values.grafana.image }}
+        ports:
+        - containerPort: {{ .Values.grafana.port }}
+        env:
+        - name: GF_AUTH_ANONYMOUS_ENABLED
+          value: "true"
+        volumeMounts:
+        - name: dashboards
+          mountPath: /var/lib/grafana/dashboards
+        - name: provisioning
+          mountPath: /etc/grafana/provisioning
+      volumes:
+      - name: dashboards
+        configMap:
+          name: grafana-dashboards
+      - name: provisioning
+        configMap:
+          name: grafana-provisioning
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards
+data:
+  treasury.json: |
+    {
+      "uid": "treasury",
+      "title": "Treasury Metrics",
+      "timezone": "browser",
+      "schemaVersion": 30,
+      "version": 1,
+      "panels": [
+        {
+          "id": 1,
+          "title": "LTV vs Limit",
+          "type": "timeseries",
+          "targets": [
+            {"expr": "treas_ltv_ratio"}
+          ]
+        },
+        {
+          "id": 2,
+          "title": "Sweep Latency P95",
+          "type": "timeseries",
+          "targets": [
+            {"expr": "histogram_quantile(0.95, rate(sweep_latency_seconds_bucket[5m]))"}
+          ]
+        },
+        {
+          "id": 3,
+          "title": "Credit Draw Count",
+          "type": "timeseries",
+          "targets": [
+            {"expr": "rate(credit_draw_latency_seconds_count[5m])"}
+          ]
+        },
+        {
+          "id": 4,
+          "title": "Credit Draw Latency",
+          "type": "timeseries",
+          "targets": [
+            {"expr": "rate(credit_draw_latency_seconds_sum[5m]) / rate(credit_draw_latency_seconds_count[5m])"}
+          ]
+        }
+      ]
+    }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-provisioning
+data:
+  dashboards.yaml: |
+    apiVersion: 1
+    providers:
+      - name: 'bb'
+        orgId: 1
+        type: file
+        options:
+          path: /var/lib/grafana/dashboards
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+spec:
+  ports:
+  - port: {{ .Values.grafana.port }}
+    targetPort: {{ .Values.grafana.port }}
+  selector:
+    app: grafana
