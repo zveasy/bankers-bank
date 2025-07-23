@@ -1,10 +1,12 @@
 import os
+import time
 from fastapi import FastAPI, Response, Depends, Request
 import httpx
 from sqlmodel import Session, select
 
 from .db import SweepOrder, init_db, get_session
 from .models import SweepOrderRequest, PaymentStatusResponse
+from treasury_observability.metrics import sweep_latency_seconds
 # from .iso20022 import create_pain_001, parse_pain_002
 
 app = FastAPI()
@@ -20,8 +22,10 @@ async def create_sweep_order(payload: SweepOrderRequest, session: Session = Depe
     #     payload.order_id, payload.amount, payload.currency, payload.debtor, payload.creditor
     # )
     xml = "<pain.001></pain.001>"  # Stubbed XML
+    start = time.perf_counter()
     async with httpx.AsyncClient() as client:
         await client.post(BANK_API_URL, data=xml, headers={"Content-Type": "application/xml"})
+    sweep_latency_seconds.observe(time.perf_counter() - start)
 
     order = SweepOrder(
         order_id=payload.order_id,
