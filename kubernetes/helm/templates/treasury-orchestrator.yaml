@@ -20,6 +20,7 @@ spec:
             name: bankers-bank-env
         ports:
         - containerPort: {{ .Values.treasury_orchestrator.port }}
+        - containerPort: 8001
         command: ["uvicorn", "asset_aggregator.api:app", "--host", "0.0.0.0", "--port", "{{ .Values.treasury_orchestrator.port }}"]
 ---
 apiVersion: v1
@@ -30,5 +31,7 @@ spec:
   ports:
   - port: {{ .Values.treasury_orchestrator.port }}
     targetPort: {{ .Values.treasury_orchestrator.port }}
+  - port: 8001
+    targetPort: 8001
   selector:
     app: treasury-orchestrator

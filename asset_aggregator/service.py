@@ -9,6 +9,7 @@ from typing import Any, Dict
 
 import httpx
 from sqlmodel import Session
+from treasury_observability.metrics import treas_ltv_ratio
 
 from .db import AssetSnapshot, engine
 
@@ -83,6 +84,10 @@ async def snapshot_bank_assets(bank_id: str, session: Session | None = None) -> 
         s.add(snapshot)
         s.commit()
         s.refresh(snapshot)
+
+    if snapshot.eligibleCollateralUSD:
+        ratio = snapshot.undrawnCreditUSD / snapshot.eligibleCollateralUSD
+        treas_ltv_ratio.labels(bank_id=bank_id).set(ratio)
 
     await publish_snapshot(snapshot)
     return snapshot

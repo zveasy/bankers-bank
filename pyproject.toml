@@ -8,6 +8,7 @@ packages = [
     {include = "treasury_orchestrator"},
     {include = "bank_connector"},
     {include = "quantengine"},
+    {include = "treasury_observability"},
 ]
 
 [tool.poetry.dependencies]
