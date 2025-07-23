@@ -20,6 +20,7 @@ spec:
             name: bankers-bank-env
         ports:
         - containerPort: {{ .Values.bank_connector.port }}
+        - containerPort: 8001
         command: ["uvicorn", "bank_connector.main:app", "--host", "0.0.0.0", "--port", "{{ .Values.bank_connector.port }}"]
 ---
 apiVersion: v1
@@ -30,5 +31,7 @@ spec:
   ports:
   - port: {{ .Values.bank_connector.port }}
     targetPort: {{ .Values.bank_connector.port }}
+  - port: 8001
+    targetPort: 8001
   selector:
     app: bank-connector
