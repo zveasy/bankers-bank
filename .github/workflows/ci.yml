@@ -173,6 +173,8 @@ jobs:
           version: v3.12.3
       - name: Install chart
         run: helm install bankers kubernetes/helm --wait --timeout 300s
+      - name: Validate alert rules
+        run: promtool test rules prom/alert.rules.yml
       - name: Check metrics endpoint
         run: |
           kubectl wait --for=condition=available --timeout=120s deployment/prometheus
