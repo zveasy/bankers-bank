@@ -2,6 +2,8 @@ bank_connector:
   image: bank_connector:latest
   port: 8080
 
+enableAlerting: true
+
 treasury_orchestrator:
   image: treasury_orchestrator:latest
   port: 8000
