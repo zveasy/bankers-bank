@@ -25,4 +25,8 @@ RUN poetry config virtualenvs.create false \
 # Copy source code
 COPY . .
 
+# run as non-root
+RUN adduser -D app 2>/dev/null || useradd -m app
+USER app
+
 CMD ["python", "-m", "quantengine.kafka_consumer", "redpanda:9092"]
