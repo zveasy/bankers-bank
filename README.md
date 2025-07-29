@@ -33,6 +33,20 @@ make gen-sdk
 
 ```
 
+### Docker quick-start
+
+```bash
+# build and start all containers in the background
+docker compose up --build -d
+
+# Open service docs (Windows `start` opens default browser)
+start http://localhost:8003/docs  # Bank Connector
+start http://localhost:9000/docs  # Asset Aggregator
+
+# stop and remove containers, networks, volumes
+docker compose down -v
+```
+
 ## Python SDK (bankersbank)
 
 > Use the Python SDK for API integration and testing.
