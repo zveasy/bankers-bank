@@ -33,6 +33,7 @@ build/
 # OS
 .DS_Store
 Thumbs.db
+*.db
 
 # Test outputs
 test_output.json

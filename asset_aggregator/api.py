@@ -11,6 +11,11 @@ app = FastAPI()
 init_db()
 
 
+@app.get("/healthz")
+async def healthz():
+    return {"ok": True}
+
+
 def get_session() -> Session:
     with Session(engine) as session:
         yield session
