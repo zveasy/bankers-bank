@@ -1,8 +1,9 @@
 import os
 from fastapi import FastAPI, Depends, HTTPException
 import redis
-from prometheus_client import Gauge, make_asgi_app
+from prometheus_client import make_asgi_app
 from sqlmodel import Session
+from treasury_observability.metrics import treas_ltv_ratio as ltv_gauge
 
 from .db import init_db, get_session, get_cash
 
@@ -12,7 +13,6 @@ init_db()
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 redis_client = redis.Redis.from_url(REDIS_URL)
 
-ltv_gauge = Gauge("treas_ltv_ratio", "Loan-to-Value ratio", ["bank_id"])
 app.mount("/metrics", make_asgi_app())
 
 

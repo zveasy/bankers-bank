@@ -1,4 +1,4 @@
-version: "3.9"
+
 services:
   postgres:
     image: postgres:13
@@ -11,7 +11,7 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
   redpanda:
-    image: docker.redpanda.com/vectorized/redpanda:latest
+    image: redpandadata/redpanda:latest
     command: |
       redpanda start --overprovisioned --smp 1 --memory 1G --reserve-memory 0M --node-id 0 --check=false
     ports:
@@ -21,17 +21,21 @@ services:
     ports:
       - "6379:6379"
   bank_connector:
-    build: ./bank_connector
+    build:
+      context: .
+      dockerfile: bank_connector/Dockerfile
     depends_on:
       - postgres
     environment:
       DATABASE_URL: postgresql://bank:bank@postgres:5432/bank
     ports:
-      - "8080:8080"
-      - "8001:8001"
+
+      - "8003:8080"
     command: uvicorn bank_connector.main:app --host 0.0.0.0 --port 8080
   treasury_orchestrator:
-    build: ./asset_aggregator
+    build:
+      context: .
+      dockerfile: asset_aggregator/Dockerfile
     depends_on:
       - postgres
       - redpanda
@@ -43,7 +47,9 @@ services:
       - "8002:8001"
     command: uvicorn asset_aggregator.api:app --host 0.0.0.0 --port 8000
   quant_consumer:
-    build: ./quantengine
+    build:
+      context: .
+      dockerfile: quantengine/Dockerfile
     depends_on:
       - redpanda
       - redis
