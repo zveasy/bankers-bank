@@ -47,6 +47,19 @@ start http://localhost:9000/docs  # Asset Aggregator
 docker compose down -v
 ```
 
+### Health & smoke
+
+- Health endpoints:
+  - Bank-Connector: `GET http://localhost:8003/healthz`
+  - Asset-Aggregator: `GET http://localhost:9000/healthz`
+
+- Smoke test:
+  ```bash
+  docker compose up -d
+  python scripts/smoke_e2e.py
+  docker compose down -v
+  ```
+
 ## Python SDK (bankersbank)
 
 > Use the Python SDK for API integration and testing.

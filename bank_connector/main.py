@@ -13,6 +13,11 @@ app = FastAPI()
 
 init_db()
 
+
+@app.get("/healthz")
+async def healthz():
+    return {"ok": True}
+
 BANK_API_URL = os.getenv("BANK_API_URL", "http://localhost:9999")
 
 
