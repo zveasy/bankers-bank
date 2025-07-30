@@ -29,7 +29,7 @@ async def create_sweep_order(payload: SweepOrderRequest, session: Session = Depe
     xml = "<pain.001></pain.001>"  # Stubbed XML
     start = time.perf_counter()
     async with httpx.AsyncClient() as client:
-        await client.post(BANK_API_URL, data=xml, headers={"Content-Type": "application/xml"})
+        await client.post(BANK_API_URL, content=xml, headers={"Content-Type": "application/xml"})
     sweep_latency_seconds.observe(time.perf_counter() - start)
 
     order = SweepOrder(
