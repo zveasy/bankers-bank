@@ -30,4 +30,8 @@ COPY . .
 
 EXPOSE 8080 8001
 
+# run as non-root
+RUN adduser -D app 2>/dev/null || useradd -m app
+USER app
+
 CMD ["uvicorn", "bank_connector.main:app", "--host", "0.0.0.0", "--port", "8080"]
