@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main, develop]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   # ────────────────────────────────
   # Go unit tests + Docker builds
@@ -30,7 +34,6 @@ jobs:
 
   # ────────────────────────────────
   # SDK wheel / integration matrix
-  # (from feature/mock-api-and-docs)
   # ────────────────────────────────
   python-sdk-test:
     runs-on: ubuntu-latest
@@ -48,26 +51,29 @@ jobs:
       - name: Upgrade pip and install test deps
         run: |
           python -m pip install --upgrade pip
-          pip install pytest pytest-cov fastapi uvicorn jsonschema
+          pip install pytest pytest-cov fastapi uvicorn jsonschema httpx requests-mock
 
-      - name: Install SDK in editable mode
+      - name: Install SDK (editable)
         run: pip install -e ./sdk/python
 
       - name: Start mock Finastra API
         env:
-          USE_MOCK_BALANCES: 1
+          USE_MOCK_BALANCES: "1"
         run: |
           uvicorn mocks.mock_finastra_api:app --host 0.0.0.0 --port 8000 &
-          for i in {1..10}; do
-            nc -z 127.0.0.1 8000 && break
+          # Wait up to ~20s for the server
+          for i in $(seq 1 20); do
+            curl -sf http://127.0.0.1:8000/docs >/dev/null && break
             echo "Waiting for mock API..." && sleep 1
           done
+
       - name: Add repo root to PYTHONPATH
-        run: echo "PYTHONPATH=$(pwd)" >> $GITHUB_ENV
+        run: echo "PYTHONPATH=$(pwd)" >> "$GITHUB_ENV"
 
       - name: Run Python integration tests with coverage
         env:
-          USE_MOCK_BALANCES: 1
+          USE_MOCK_BALANCES: "1"
+          BANK_API_URL: http://127.0.0.1:8000
           MOCK_API_URL: http://127.0.0.1:8000
         run: pytest --cov=bankersbank --cov-report=xml --cov-report=term integration-client
 
@@ -77,20 +83,17 @@ jobs:
           name: coverage-xml-${{ matrix.python-version }}
           path: coverage.xml
 
-
   # ────────────────────────────────
   # Poetry-based workflow with lint,
   # type-checks & JSON-schema tests
-  # (from main)
   # ────────────────────────────────
-# TODO: Add status badge for mock-API CI job to README.md
   test-python-poetry:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
@@ -101,35 +104,35 @@ jobs:
           virtualenvs-create: true
           virtualenvs-in-project: true
 
-      - name: Load cached venv
+      - name: Cache venv
         id: cached-poetry-dependencies
         uses: actions/cache@v3
         with:
           path: .venv
           key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
 
-      - name: Install dependencies (if not cached)
-        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction --no-root
+      - name: Install dependencies (runtime + dev)
+        # Explicitly include dev group for pytest-asyncio / pytest-env
+        run: poetry install --no-interaction --with dev
 
-      - name: Install project
-        run: poetry install --no-interaction
-        
       - name: Install SDK package (editable)
         run: poetry run pip install -e sdk/python
 
       - name: Start mock Finastra API
+        env:
+          USE_MOCK_BALANCES: "1"
         run: |
-          poetry run pip install --upgrade fastapi uvicorn
           poetry run uvicorn mocks.mock_finastra_api:app --host 0.0.0.0 --port 8000 &
-          # Wait for the server to start
-          for i in {1..10}; do
-            nc -z 127.0.0.1 8000 && break
+          for i in $(seq 1 20); do
+            curl -sf http://127.0.0.1:8000/docs >/dev/null && break
             echo "Waiting for mock API..." && sleep 1
           done
-        
+
       - name: Run pytest
-        run: poetry run pytest
+        env:
+          BANK_API_URL: http://127.0.0.1:8000
+          USE_MOCK_BALANCES: "1"
+        run: poetry run pytest -q
 
       - name: Set up Node.js for AJV
         uses: actions/setup-node@v4
@@ -144,10 +147,13 @@ jobs:
           poetry run python - <<'PY'
           from treasury_orchestrator.cli import main
           import sys
+          sys.stdout.reconfigure(encoding='utf-8')
           sys.argv = ['cli.py', '100000.00']
           main()
           PY
-          > test_output.json
+          # if the CLI prints JSON to stdout, capture it:
+          # (uncomment if needed and main() prints)
+          # poetry run python cli.py 100000.00 > test_output.json
 
       - name: Validate JSON schema
         run: npx ajv validate -s schemas/sweep_order.schema.json -d test_output.json
@@ -160,6 +166,9 @@ jobs:
       - name: Run type checking
         run: poetry run mypy treasury_orchestrator
 
+  # ────────────────────────────────
+  # Helm install into KinD, smoke checks
+  # ────────────────────────────────
   deploy-kind:
     runs-on: ubuntu-latest
     needs: test-python-poetry
@@ -180,6 +189,9 @@ jobs:
           kubectl wait --for=condition=available --timeout=120s deployment/prometheus
           curl -s prometheus-svc:8001/metrics | grep treas_ltv_ratio
 
+  # ────────────────────────────────
+  # Compose smoke test of the whole stack
+  # ────────────────────────────────
   compose-smoke:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -195,7 +207,7 @@ jobs:
       - name: Start stack
         run: docker compose up -d
 
-      - name: Install Python + requests for smoke
+      - name: Set up Python for smoke
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
