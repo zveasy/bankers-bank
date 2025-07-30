@@ -1,5 +1,9 @@
+version: "3.9"
 
 services:
+  # ────────────────────────────────
+  # Infra
+  # ────────────────────────────────
   postgres:
     image: postgres:13
     environment:
@@ -10,78 +14,132 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bank -d bank -h localhost || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+
   redpanda:
     image: redpandadata/redpanda:latest
-    command: |
-      redpanda start --overprovisioned --smp 1 --memory 1G --reserve-memory 0M --node-id 0 --check=false
+    command: >
+      redpanda start
+      --overprovisioned
+      --smp 1
+      --memory 1G
+      --reserve-memory 0M
+      --node-id 0
+      --check=false
     ports:
-      - "9092:9092"
+      - "9092:9092"    # Kafka
+      - "9644:9644"    # Admin API (useful for healthcheck/ops)
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9644/v1/status/ready || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 20
+      start_period: 15s
+    restart: unless-stopped
+
   redis:
     image: redis:7
     ports:
       - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    restart: unless-stopped
+
+  # ────────────────────────────────
+  # App services
+  # ────────────────────────────────
   bank_connector:
     build:
-      context: .
+      context: .                      # repo root so poetry files are visible
       dockerfile: bank_connector/Dockerfile
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     environment:
       DATABASE_URL: postgresql://bank:bank@postgres:5432/bank
     ports:
-
-      - "8003:8080"
+      - "8003:8080"                   # host:container (app port)
     command: uvicorn bank_connector.main:app --host 0.0.0.0 --port 8080
     healthcheck:
       test: >
-        CMD-SHELL python -c "import urllib.request, sys;\
-        url='http://localhost:8080/healthz';\
+        CMD-SHELL python -c "import urllib.request, sys;
+        url='http://localhost:8080/healthz';
         sys.exit(0) if urllib.request.urlopen(url, timeout=2).getcode()==200 else sys.exit(1)"
       interval: 10s
       timeout: 3s
       retries: 10
       start_period: 15s
+    restart: unless-stopped
+
   treasury_orchestrator:
     build:
       context: .
       dockerfile: asset_aggregator/Dockerfile
     depends_on:
-      - postgres
-      - redpanda
+      postgres:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
     environment:
       ASSET_DB_URL: postgresql://bank:bank@postgres:5432/bank
       KAFKA_BOOTSTRAP: redpanda:9092
     ports:
-      - "9000:8000"
-      - "8002:8001"
+      - "9000:8000"                   # app
+      - "8002:8001"                   # metrics (Prometheus scrape)
     command: uvicorn asset_aggregator.api:app --host 0.0.0.0 --port 8000
     healthcheck:
       test: >
-        CMD-SHELL python -c "import urllib.request, sys;\
-        url='http://localhost:8000/healthz';\
+        CMD-SHELL python -c "import urllib.request, sys;
+        url='http://localhost:8000/healthz';
         sys.exit(0) if urllib.request.urlopen(url, timeout=2).getcode()==200 else sys.exit(1)"
       interval: 10s
       timeout: 3s
       retries: 10
       start_period: 15s
+    restart: unless-stopped
+
   quant_consumer:
     build:
       context: .
       dockerfile: quantengine/Dockerfile
     depends_on:
-      - redpanda
-      - redis
+      redpanda:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
       REDIS_URL: redis://redis:6379/0
     command: python -m quantengine.kafka_consumer redpanda:9092
+    restart: unless-stopped
+
+  # ────────────────────────────────
+  # Observability
+  # ────────────────────────────────
   prometheus:
-    image: prom/prometheus
+    image: prom/prometheus:latest
     volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
     ports:
       - "8001:9090"
+    depends_on:
+      treasury_orchestrator:
+        condition: service_started
+      bank_connector:
+        condition: service_started
+    restart: unless-stopped
+
   grafana:
-    image: grafana/grafana
+    image: grafana/grafana:latest
     ports:
       - "3000:3000"
     environment:
@@ -89,5 +147,10 @@ services:
     volumes:
       - ./grafana/dashboards:/var/lib/grafana/dashboards
       - ./grafana/provisioning:/etc/grafana/provisioning
+    depends_on:
+      prometheus:
+        condition: service_started
+    restart: unless-stopped
+
 volumes:
   pgdata:
