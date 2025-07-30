@@ -27,4 +27,8 @@ COPY . .
 
 EXPOSE 8000 8001
 
+# run as non-root
+RUN adduser -D app 2>/dev/null || useradd -m app
+USER app
+
 CMD ["uvicorn", "asset_aggregator.api:app", "--host", "0.0.0.0", "--port", "8000"]
