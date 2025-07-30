@@ -6,10 +6,6 @@ on:
   pull_request:
     branches: [main, develop]
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   # ────────────────────────────────
   # Go unit tests + Docker builds
@@ -34,6 +30,7 @@ jobs:
 
   # ────────────────────────────────
   # SDK wheel / integration matrix
+  # (from feature/mock-api-and-docs)
   # ────────────────────────────────
   python-sdk-test:
     runs-on: ubuntu-latest
@@ -51,29 +48,30 @@ jobs:
       - name: Upgrade pip and install test deps
         run: |
           python -m pip install --upgrade pip
-          pip install pytest pytest-cov fastapi uvicorn jsonschema httpx requests-mock
+          pip install pytest pytest-cov fastapi uvicorn jsonschema
 
-      - name: Install SDK (editable)
+      - name: Install SDK in editable mode
         run: pip install -e ./sdk/python
+
+      - name: Ensure netcat present
+        run: sudo apt-get update && sudo apt-get install -y netcat-openbsd
 
       - name: Start mock Finastra API
         env:
-          USE_MOCK_BALANCES: "1"
+          USE_MOCK_BALANCES: 1
         run: |
           uvicorn mocks.mock_finastra_api:app --host 0.0.0.0 --port 8000 &
-          # Wait up to ~20s for the server
-          for i in $(seq 1 20); do
-            curl -sf http://127.0.0.1:8000/docs >/dev/null && break
+          for i in {1..10}; do
+            nc -z 127.0.0.1 8000 && break
             echo "Waiting for mock API..." && sleep 1
           done
 
       - name: Add repo root to PYTHONPATH
-        run: echo "PYTHONPATH=$(pwd)" >> "$GITHUB_ENV"
+        run: echo "PYTHONPATH=$(pwd)" >> $GITHUB_ENV
 
       - name: Run Python integration tests with coverage
         env:
-          USE_MOCK_BALANCES: "1"
-          BANK_API_URL: http://127.0.0.1:8000
+          USE_MOCK_BALANCES: 1
           MOCK_API_URL: http://127.0.0.1:8000
         run: pytest --cov=bankersbank --cov-report=xml --cov-report=term integration-client
 
@@ -86,6 +84,7 @@ jobs:
   # ────────────────────────────────
   # Poetry-based workflow with lint,
   # type-checks & JSON-schema tests
+  # (from main)  👉 updated to start Redis & Redpanda
   # ────────────────────────────────
   test-python-poetry:
     runs-on: ubuntu-latest
@@ -93,6 +92,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Set up Python
+        id: setup-python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -104,35 +104,74 @@ jobs:
           virtualenvs-create: true
           virtualenvs-in-project: true
 
-      - name: Cache venv
+      - name: Load cached venv
         id: cached-poetry-dependencies
         uses: actions/cache@v3
         with:
           path: .venv
           key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
 
-      - name: Install dependencies (runtime + dev)
-        # Explicitly include dev group for pytest-asyncio / pytest-env
-        run: poetry install --no-interaction --with dev
+      - name: Install dependencies (if not cached)
+        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+        run: poetry install --no-interaction --no-root
+
+      - name: Install project
+        run: poetry install --no-interaction
 
       - name: Install SDK package (editable)
         run: poetry run pip install -e sdk/python
 
-      - name: Start mock Finastra API
-        env:
-          USE_MOCK_BALANCES: "1"
+      # ---------- NEW: bring up Redis & Redpanda ----------
+      - name: Ensure curl & netcat available
+        run: sudo apt-get update && sudo apt-get install -y curl netcat-openbsd
+
+      - name: Start Redis (Docker)
         run: |
+          docker run -d --name ci-redis -p 6379:6379 redis:7
+          for i in {1..30}; do
+            nc -z 127.0.0.1 6379 && echo "Redis is up" && break
+            echo "Waiting for Redis..." && sleep 1
+          done
+
+      - name: Start Redpanda (Docker)
+        run: |
+          docker run -d --name ci-redpanda -p 9092:9092 -p 9644:9644 \
+            redpandadata/redpanda:latest \
+            redpanda start --overprovisioned --smp 1 --memory 1G --reserve-memory 0M --node-id 0 --check=false
+          # Wait for Admin API readiness
+          for i in {1..60}; do
+            curl -fsS http://127.0.0.1:9644/v1/status/ready && echo "Redpanda ready" && break
+            echo "Waiting for Redpanda..." && sleep 1
+          done
+      # ----------------------------------------------------
+
+      - name: Start mock Finastra API
+        run: |
+          poetry run pip install --upgrade fastapi uvicorn
           poetry run uvicorn mocks.mock_finastra_api:app --host 0.0.0.0 --port 8000 &
-          for i in $(seq 1 20); do
-            curl -sf http://127.0.0.1:8000/docs >/dev/null && break
+          for i in {1..10}; do
+            nc -z 127.0.0.1 8000 && break
             echo "Waiting for mock API..." && sleep 1
           done
 
       - name: Run pytest
         env:
-          BANK_API_URL: http://127.0.0.1:8000
+          REDIS_URL: redis://127.0.0.1:6379/0
+          KAFKA_BOOTSTRAP: 127.0.0.1:9092
           USE_MOCK_BALANCES: "1"
+          MOCK_API_URL: http://127.0.0.1:8000
         run: poetry run pytest -q
+
+      - name: Dump service logs on failure
+        if: failure()
+        run: |
+          docker logs ci-redis || true
+          docker logs ci-redpanda || true
+
+      - name: Cleanup containers
+        if: always()
+        run: |
+          docker rm -f ci-redis ci-redpanda || true
 
       - name: Set up Node.js for AJV
         uses: actions/setup-node@v4
@@ -147,13 +186,10 @@ jobs:
           poetry run python - <<'PY'
           from treasury_orchestrator.cli import main
           import sys
-          sys.stdout.reconfigure(encoding='utf-8')
           sys.argv = ['cli.py', '100000.00']
           main()
           PY
-          # if the CLI prints JSON to stdout, capture it:
-          # (uncomment if needed and main() prints)
-          # poetry run python cli.py 100000.00 > test_output.json
+          > test_output.json
 
       - name: Validate JSON schema
         run: npx ajv validate -s schemas/sweep_order.schema.json -d test_output.json
@@ -167,7 +203,7 @@ jobs:
         run: poetry run mypy treasury_orchestrator
 
   # ────────────────────────────────
-  # Helm install into KinD, smoke checks
+  # Helm smoke on kind
   # ────────────────────────────────
   deploy-kind:
     runs-on: ubuntu-latest
@@ -190,7 +226,7 @@ jobs:
           curl -s prometheus-svc:8001/metrics | grep treas_ltv_ratio
 
   # ────────────────────────────────
-  # Compose smoke test of the whole stack
+  # docker compose build + smoke
   # ────────────────────────────────
   compose-smoke:
     runs-on: ubuntu-latest
@@ -207,7 +243,7 @@ jobs:
       - name: Start stack
         run: docker compose up -d
 
-      - name: Set up Python for smoke
+      - name: Install Python + requests for smoke
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
