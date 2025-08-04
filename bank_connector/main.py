@@ -4,7 +4,7 @@ from fastapi import FastAPI, Response, Depends, Request
 import httpx
 from sqlmodel import Session, select
 
-from .db import SweepOrder, init_db, get_session, engine
+from .db import SweepOrder, init_db, get_session
 from .models import SweepOrderRequest, PaymentStatusResponse
 from treasury_observability.metrics import sweep_latency_seconds
 # from .iso20022 import create_pain_001, parse_pain_002
@@ -15,13 +15,8 @@ init_db()
 
 
 @app.get("/healthz")
-def healthz() -> Response | dict:
-    try:
-        with Session(engine) as session:
-            session.exec(select(1))
-        return {"ok": True}
-    except Exception as exc:
-        return Response(status_code=503, content=f"db:{exc}")
+async def healthz():
+    return {"ok": True}
 
 BANK_API_URL = os.getenv("BANK_API_URL", "http://localhost:9999")
 
@@ -34,7 +29,7 @@ async def create_sweep_order(payload: SweepOrderRequest, session: Session = Depe
     xml = "<pain.001></pain.001>"  # Stubbed XML
     start = time.perf_counter()
     async with httpx.AsyncClient() as client:
-        await client.post(BANK_API_URL, content=xml, headers={"Content-Type": "application/xml"})
+        await client.post(BANK_API_URL, data=xml, headers={"Content-Type": "application/xml"})
     sweep_latency_seconds.observe(time.perf_counter() - start)
 
     order = SweepOrder(
