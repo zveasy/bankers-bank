@@ -16,6 +16,15 @@ redis_client = redis.Redis.from_url(REDIS_URL)
 app.mount("/metrics", make_asgi_app())
 
 
+@app.get("/healthz")
+def healthz():
+    try:
+        redis_client.ping()
+        return {"ok": True}
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"redis:{exc}")
+
+
 @app.get("/investable-cash")
 def investable_cash(bank_id: str, session: Session = Depends(get_session)):
     val = redis_client.get(f"cash_available:{bank_id}")
