@@ -1,5 +1,6 @@
 # keep the build context lean
-.git
+.git/
+*.pyc
 .venv/
 __pycache__/
 .pytest_cache/

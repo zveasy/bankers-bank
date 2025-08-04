@@ -1,0 +1,10 @@
+groups:
+- name: quant_consumer_recording
+  interval: 15s
+  rules:
+  - record: job:asset_snapshots_consumed_rps
+    expr: rate(asset_snapshots_consumed_total[5m])
+  - record: job:asset_snapshots_db_inserts_rps
+    expr: rate(asset_snapshots_db_inserts_total[5m])
+  - record: job:asset_snapshot_process_latency_p95
+    expr: histogram_quantile(0.95, sum by (le) (rate(asset_snapshot_process_latency_seconds_bucket[5m])))

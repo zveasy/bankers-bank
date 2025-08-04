@@ -1,8 +1,10 @@
 global:
   scrape_interval: 5s
 scrape_configs:
-  - job_name: 'bankers-bank'
+  - job_name: services
+    metrics_path: /metrics
     static_configs:
       - targets:
-        - bank_connector:8001
-        - treasury_orchestrator:8001
+        - bank_connector:8080
+        - asset_aggregator:8000
+        - quantengine:8000
