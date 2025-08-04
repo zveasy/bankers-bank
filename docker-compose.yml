@@ -24,17 +24,21 @@ services:
     image: redpandadata/redpanda:latest
     command: >
       redpanda start
-      --overprovisioned
-      --smp 1
-      --memory 1G
-      --reserve-memory 0M
-      --node-id 0
-      --check=false
-      --kafka-addr PLAINTEXT://0.0.0.0:9092
-      --advertise-kafka-addr PLAINTEXT://127.0.0.1:9092
+        --overprovisioned
+        --smp 1
+        --memory 1G
+        --reserve-memory 0M
+        --node-id 0
+        --check=false
+        # internal (in-Docker) listener
+        --kafka-addr PLAINTEXT://0.0.0.0:9092
+        --advertise-kafka-addr PLAINTEXT://redpanda:9092
+        # external (host) listener
+        --kafka-addr OUTSIDE://0.0.0.0:9092
+        --advertise-kafka-addr OUTSIDE://localhost:29092
     ports:
-      - "9092:9092"  # Expose Kafka port to host for local producer connectivity
-      - "9644:9644"
+      - "9092:9092"   # in-Docker clients use redpanda:9092
+      - "29092:9092"  # host clients use localhost:29092
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:9644/v1/status/ready || exit 1"]
       interval: 10s
