@@ -4,7 +4,7 @@ from fastapi import FastAPI, Response, Depends, Request
 import httpx
 from sqlmodel import Session, select
 
-from .db import SweepOrder, init_db, get_session
+from .db import SweepOrder, init_db, get_session, engine
 from .models import SweepOrderRequest, PaymentStatusResponse
 from treasury_observability.metrics import sweep_latency_seconds
 # from .iso20022 import create_pain_001, parse_pain_002
@@ -15,8 +15,13 @@ init_db()
 
 
 @app.get("/healthz")
-async def healthz():
-    return {"ok": True}
+def healthz() -> Response | dict:
+    try:
+        with Session(engine) as session:
+            session.exec(select(1))
+        return {"ok": True}
+    except Exception as exc:
+        return Response(status_code=503, content=f"db:{exc}")
 
 BANK_API_URL = os.getenv("BANK_API_URL", "http://localhost:9999")
 
