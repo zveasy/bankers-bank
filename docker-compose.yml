@@ -1,5 +1,4 @@
-version: "3.9"
-
+# version key is obsolete in Compose v2; omit to silence warnings
 services:
   # ────────────────────────────────
   # Infra
@@ -10,8 +9,7 @@ services:
       POSTGRES_USER: bank
       POSTGRES_PASSWORD: bank
       POSTGRES_DB: bank
-    ports:
-      - "5432:5432"
+    ports: ["5432:5432"]
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -32,9 +30,11 @@ services:
       --reserve-memory 0M
       --node-id 0
       --check=false
+      --kafka-addr PLAINTEXT://0.0.0.0:9092
+      --advertise-kafka-addr PLAINTEXT://127.0.0.1:9092
     ports:
-      - "9092:9092"    # Kafka
-      - "9644:9644"    # Admin API (useful for healthcheck/ops)
+      - "9092:9092"  # Expose Kafka port to host for local producer connectivity
+      - "9644:9644"
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:9644/v1/status/ready || exit 1"]
       interval: 10s
@@ -42,11 +42,14 @@ services:
       retries: 20
       start_period: 15s
     restart: unless-stopped
+    networks:
+      default:
+        aliases:
+          - redpanda
 
   redis:
     image: redis:7
-    ports:
-      - "6379:6379"
+    ports: ["6379:6379"]
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -56,29 +59,39 @@ services:
     restart: unless-stopped
 
   # ────────────────────────────────
+  # Mock external bank (for /sweep-order)
+  # ────────────────────────────────
+  mock_bank:
+    image: mccutchen/go-httpbin:latest   # lightweight httpbin
+    expose:
+      - "8080"
+    restart: unless-stopped
+
+  # ────────────────────────────────
   # App services
   # ────────────────────────────────
   bank_connector:
     build:
-      context: .                      # repo root so poetry files are visible
+      context: .
       dockerfile: bank_connector/Dockerfile
     depends_on:
       postgres:
         condition: service_healthy
+      mock_bank:
+        condition: service_started
     environment:
       DATABASE_URL: postgresql://bank:bank@postgres:5432/bank
-    ports:
-      - "8003:8080"                   # host:container (app port)
+      BANK_API_URL: http://mock_bank:8080/post
+    ports: ["8003:8080"]
     command: uvicorn bank_connector.main:app --host 0.0.0.0 --port 8080
     healthcheck:
-      test: >
-        CMD-SHELL python -c "import urllib.request, sys;
-        url='http://localhost:8080/healthz';
-        sys.exit(0) if urllib.request.urlopen(url, timeout=2).getcode()==200 else sys.exit(1)"
+      test:
+        - CMD-SHELL
+        - python -c "import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=5).getcode()==200 else sys.exit(1)"
       interval: 10s
-      timeout: 3s
+      timeout: 5s
       retries: 10
-      start_period: 15s
+      start_period: 25s
     restart: unless-stopped
 
   asset_aggregator:
@@ -91,21 +104,20 @@ services:
       redpanda:
         condition: service_healthy
     environment:
-      ASSET_DB_URL: postgresql://bank:bank@postgres:5432/bank
       KAFKA_BOOTSTRAP: redpanda:9092
+      DATABASE_URL: postgresql://bank:bank@postgres:5432/bank
     ports:
-      - "9000:8000"                   # app
-      - "8002:8001"                   # metrics (Prometheus scrape)
+      - "9000:8000"
+      - "8002:8001"
     command: uvicorn asset_aggregator.api:app --host 0.0.0.0 --port 8000
     healthcheck:
-      test: >
-        CMD-SHELL python -c "import urllib.request, sys;
-        url='http://localhost:8000/healthz';
-        sys.exit(0) if urllib.request.urlopen(url, timeout=2).getcode()==200 else sys.exit(1)"
+      test:
+        - CMD-SHELL
+        - python -c "import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=7).getcode()==200 else sys.exit(1)"
       interval: 10s
-      timeout: 3s
-      retries: 10
-      start_period: 15s
+      timeout: 7s
+      retries: 12
+      start_period: 30s
     restart: unless-stopped
 
   quantengine:
@@ -119,16 +131,19 @@ services:
         condition: service_healthy
     environment:
       REDIS_URL: redis://redis:6379/0
-    ports:
-      - "9100:8000"                   # app
+      QUANT_DB_URL: sqlite:////data/quant.db
+    volumes:
+      - quantdata:/data
+    ports: ["9100:8000"]
     command: uvicorn quantengine.main:app --host 0.0.0.0 --port 8000
     healthcheck:
-      test: >
-        CMD-SHELL python -c "import urllib.request, sys; url='http://localhost:8000/healthz'; sys.exit(0) if urllib.request.urlopen(url, timeout=2).getcode()==200 else sys.exit(1)"
+      test:
+        - CMD-SHELL
+        - python -c "import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=7).getcode()==200 else sys.exit(1)"
       interval: 10s
-      timeout: 3s
-      retries: 10
-      start_period: 15s
+      timeout: 7s
+      retries: 12
+      start_period: 30s
     restart: unless-stopped
 
   quant_consumer:
@@ -140,31 +155,46 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      postgres:
+        condition: service_healthy
     environment:
       REDIS_URL: redis://redis:6379/0
-    command: python -m quantengine.kafka_consumer redpanda:9092
+      QUANT_DB_URL: sqlite:////data/quant.db
+      DATABASE_URL: postgresql://bank:bank@postgres:5432/bank
+      KAFKA_BOOTSTRAP: redpanda:9092
+    entrypoint: ["python", "-u", "-m", "quantengine.kafka_consumer"]
+    command: ["redpanda:9092"]
+    volumes:
+      - quantdata:/data
     restart: unless-stopped
+    networks:
+      default:
 
   # ────────────────────────────────
   # Observability
   # ────────────────────────────────
   prometheus:
-    image: prom/prometheus:latest
-    volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    image: prom/prometheus:v2.52.0
+    restart: unless-stopped
     ports:
-      - "8001:9090"
+      - "8001:9090"  # Prometheus UI at http://localhost:8001
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alert_rules:/etc/prometheus/alert_rules:ro
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --web.listen-address=:9090
     depends_on:
-      asset_aggregator:
-        condition: service_started
       bank_connector:
         condition: service_started
-    restart: unless-stopped
+      asset_aggregator:
+        condition: service_started
+      quantengine:
+        condition: service_started
 
   grafana:
     image: grafana/grafana:latest
-    ports:
-      - "3000:3000"
+    ports: ["3000:3000"]
     environment:
       GF_AUTH_ANONYMOUS_ENABLED: "true"
     volumes:
@@ -177,3 +207,4 @@ services:
 
 volumes:
   pgdata:
+  quantdata:
