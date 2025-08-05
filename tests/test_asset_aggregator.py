@@ -27,6 +27,10 @@ async def test_snapshot_bank_assets(monkeypatch, session):
     monkeypatch.setattr(svc, "balances_puller", fake_balances)
     monkeypatch.setattr(svc, "collateral_puller", fake_collateral)
 
+    # Mock publish_snapshot to avoid Kafka dependency
+    async def fake_publish_snapshot(snapshot):
+        return None
+    monkeypatch.setattr(svc, "publish_snapshot", fake_publish_snapshot)
     snap = await svc.snapshot_bank_assets("123", session)
     assert isinstance(snap, AssetSnapshot)
     row = session.exec(select(AssetSnapshot)).first()
