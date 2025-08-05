@@ -23,22 +23,18 @@ services:
   redpanda:
     image: redpandadata/redpanda:latest
     command: >
-      redpanda start
-        --overprovisioned
-        --smp 1
-        --memory 1G
-        --reserve-memory 0M
-        --node-id 0
-        --check=false
-        # internal (in-Docker) listener
-        --kafka-addr PLAINTEXT://0.0.0.0:9092
-        --advertise-kafka-addr PLAINTEXT://redpanda:9092
-        # external (host) listener
-        --kafka-addr OUTSIDE://0.0.0.0:9092
-        --advertise-kafka-addr OUTSIDE://localhost:29092
+      redpanda start \
+        --overprovisioned \
+        --smp 1 \
+        --memory 1G \
+        --reserve-memory 0M \
+        --node-id 0 \
+        --check=false \
+        --kafka-addr PLAINTEXT://0.0.0.0:9092,OUTSIDE://0.0.0.0:29092 \
+        --advertise-kafka-addr PLAINTEXT://redpanda:9092,OUTSIDE://localhost:29092
     ports:
       - "9092:9092"   # in-Docker clients use redpanda:9092
-      - "29092:9092"  # host clients use localhost:29092
+      - "29092:29092"  # host clients use localhost:29092
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:9644/v1/status/ready || exit 1"]
       interval: 10s
@@ -61,8 +57,6 @@ services:
       retries: 20
       start_period: 5s
     restart: unless-stopped
-
-  # ────────────────────────────────
   # Mock external bank (for /sweep-order)
   # ────────────────────────────────
   mock_bank:
@@ -109,7 +103,7 @@ services:
         condition: service_healthy
     environment:
       KAFKA_BOOTSTRAP: redpanda:9092
-      DATABASE_URL: postgresql://bank:bank@postgres:5432/bank
+      ASSET_DB_URL: postgresql://bank:bank@postgres:5432/bank
     ports:
       - "9000:8000"
       - "8002:8001"
@@ -164,12 +158,20 @@ services:
     environment:
       REDIS_URL: redis://redis:6379/0
       QUANT_DB_URL: sqlite:////data/quant.db
-      DATABASE_URL: postgresql://bank:bank@postgres:5432/bank
+      ASSET_DB_URL: postgresql://bank:bank@postgres:5432/bank
       KAFKA_BOOTSTRAP: redpanda:9092
     entrypoint: ["python", "-u", "-m", "quantengine.kafka_consumer"]
     command: ["redpanda:9092"]
     volumes:
       - quantdata:/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - python -c "import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://127.0.0.1:8001/', timeout=5).getcode()==200 else sys.exit(1)"
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 25s
     restart: unless-stopped
     networks:
       default:
