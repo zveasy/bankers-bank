@@ -4,13 +4,14 @@ from __future__ import annotations
 import socket
 import time
 from datetime import datetime, timedelta, timezone
-from typing import List, Optional
+from typing import List
 
-from fastapi import FastAPI, Depends, HTTPException, Query
+from fastapi import FastAPI, Depends, HTTPException
+from pydantic import BaseModel
 from sqlmodel import Session, select
 
 from .db import engine, AssetSnapshot, init_db
-from .service import run_snapshot_once, KAFKA_BOOTSTRAP
+from .service import run_snapshot_once, KAFKA_BOOTSTRAP, reconcile_snapshot
 from treasury_observability.metrics import snapshot_latency_seconds
 from prometheus_client import make_asgi_app
 
@@ -18,6 +19,9 @@ app = FastAPI()
 init_db()
 
 app.mount("/metrics", make_asgi_app())
+
+class SnapshotRequest(BaseModel):
+    bank_id: str | None = none
 
 
 @app.get("/healthz", response_model=dict)
@@ -51,13 +55,29 @@ def get_session() -> Session:
 
 
 @app.post("/snapshot")
-def create_snapshot(bank_id: str | None = None):
+def create_snapshot(payload: SnapshotRequest | None = None, bank_id: str | None = None):
     t0 = time.perf_counter()
     try:
-        res = run_snapshot_once(bank_id)
+        bank = (bank_id or (payload.bank_id if payload else None) or "O&L")
+        # fetch previous snapshot for reconciliation
+        prev = None
+        with Session(engine) as s:
+            row = s.exec(
+                select(AssetSnapshot)
+                .where(AssetSnapshot.bank_id == bank)
+                .order_by(AssetSnapshot.ts.desc())
+            ).first()
+            if row:
+                prev = {
+                    "eligiblecollateralusd": row.eligibleCollateralUSD,
+                    "totalbalancesusd": row.totalBalancesUSD,
+                }
+        status, ltv = run_snapshot_once(bank)
+        # reconcile with mock current values (replace when wiring in real numbers)
+        reconcile_snapshot(prev, {"eligiblecollateralusd": 1_000_000.0, "totalbalancesusd": 5_000_000.0}, bank)
         # record latency on success
         snapshot_latency_seconds.observe(time.perf_counter() - t0)
-        return {"ok": True, "result": res}
+        return {"ok": True, "status": status, "ltv": ltv}
     except Exception as e:
         # still record latency on failure
         snapshot_latency_seconds.observe(time.perf_counter() - t0)
