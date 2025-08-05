@@ -25,6 +25,31 @@ logging.basicConfig(
 )
 log = logging.getLogger("quant_consumer")
 
+# ---------------- Test helper ----------------
+
+def process_message(message: bytes, redis_conn):
+    """Parse snapshot message from Kafka and update Redis cache.
+
+    Expected JSON: {"bank_id": str, "cash": float}
+    This helper is used by unit tests (tests/test_quantengine.py).
+    """
+    try:
+        payload = json.loads(message)
+    except Exception as exc:
+        log.error("invalid json: %s", exc)
+        asset_snapshot_process_failures_total.labels(service="quant_consumer", env=os.getenv("ENV", "dev")).inc()
+        return
+
+    bank_id = payload.get("bank_id") or "unknown"
+    cash = payload.get("cash")
+    if cash is None:
+        return
+    try:
+        redis_conn.set(f"cash_available:{bank_id}", cash)
+    except Exception as exc:
+        log.error("redis set failed: %s", exc)
+
+
 # ---- prometheus (served from inside this process too)
 METRICS_PORT = int(os.getenv("METRICS_PORT", "8001"))
 start_http_server(METRICS_PORT, addr="0.0.0.0")
