@@ -7,6 +7,52 @@ on:
     branches: [main, develop]
 
 jobs:
+  compose-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install Poetry
+        run: pip install poetry==1.8.2
+      - name: Install deps
+        run: poetry install --no-root
+      - name: Start stack
+        run: docker compose up -d
+      - name: Wait for health
+        run: |
+          python - <<'PY'
+          import time, urllib.request, sys
+          def wait(url, path="/healthz", tries=90, delay=1.0):
+              for _ in range(tries):
+                  try:
+                      with urllib.request.urlopen(url+path, timeout=2) as r:
+                          if r.status == 200:
+                              return
+                  except Exception:
+                      pass
+                  time.sleep(delay)
+              print(f"Timed out waiting for {url}{path}", file=sys.stderr)
+              sys.exit(1)
+          wait("http://127.0.0.1:8003")
+          wait("http://127.0.0.1:9000")
+          PY
+      - name: Run smoke tests
+        env:
+          BANK_CONNECTOR_URL: http://127.0.0.1:8003
+          ASSET_AGGREGATOR_URL: http://127.0.0.1:9000
+        run: poetry run python scripts/smoke_e2e.py
+      - name: Upload compose logs on failure
+        if: failure()
+        run: docker compose logs > compose-logs.txt
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: compose-logs
+          path: compose-logs.txt
+
   # ────────────────────────────────
   # Go unit tests + Docker builds
   # ────────────────────────────────
@@ -142,6 +188,11 @@ jobs:
           for i in {1..60}; do
             curl -fsS http://127.0.0.1:9644/v1/status/ready && echo "Redpanda ready" && break
             echo "Waiting for Redpanda..." && sleep 1
+          done
+          # Also ensure Kafka socket ready
+          for i in {1..60}; do
+            nc -z 127.0.0.1 9092 && echo "Kafka socket ready" && break
+            echo "Waiting for Kafka socket..." && sleep 1
           done
       # ----------------------------------------------------
 

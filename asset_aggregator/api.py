@@ -52,10 +52,14 @@ def get_session() -> Session:
 
 @app.post("/snapshot")
 def create_snapshot(bank_id: str | None = None):
+    t0 = time.perf_counter()
     try:
         res = run_snapshot_once(bank_id)
+        # record latency on success
+        snapshot_latency_seconds.observe(time.perf_counter() - t0)
         return {"ok": True, "result": res}
     except Exception as e:
+        # still record latency on failure
         snapshot_latency_seconds.observe(time.perf_counter() - t0)
         raise HTTPException(status_code=500, detail=f"snapshot_failed: {e}") from e
 
