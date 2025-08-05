@@ -4,7 +4,7 @@ from aiokafka import AIOKafkaProducer
 import os
 from datetime import datetime
 
-KAFKA_BOOTSTRAP = os.getenv("KAFKA_BOOTSTRAP", "127.0.0.1:9092")
+KAFKA_BOOTSTRAP = os.getenv("KAFKA_BOOTSTRAP", "localhost:29092")
 TOPIC = "asset_snapshots"
 
 async def produce():

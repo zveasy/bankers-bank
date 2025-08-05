@@ -7,11 +7,15 @@ from sqlmodel import Session, select
 from .db import SweepOrder, init_db, get_session
 from .models import SweepOrderRequest, PaymentStatusResponse
 from treasury_observability.metrics import sweep_latency_seconds
+from prometheus_client import make_asgi_app
 # from .iso20022 import create_pain_001, parse_pain_002
 
 app = FastAPI()
 
 init_db()
+
+# Expose Prometheus metrics
+app.mount("/metrics", make_asgi_app())
 
 
 @app.get("/healthz")
