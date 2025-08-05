@@ -91,3 +91,16 @@ async def snapshot_bank_assets(bank_id: str, session: Session | None = None) -> 
 
     await publish_snapshot(snapshot)
     return snapshot
+
+
+def run_snapshot_once(bank_id: str | None = None) -> Dict[str, Any]:
+    bank_id = bank_id or os.getenv("BANK_ID", "demo-bank")
+    snap = asyncio.run(snapshot_bank_assets(bank_id))
+    return {
+        "bank_id": snap.bank_id,
+        "ts": snap.ts.isoformat(),
+        "topic": KAFKA_TOPIC,
+        "eligibleCollateralUSD": snap.eligibleCollateralUSD,
+        "totalBalancesUSD": snap.totalBalancesUSD,
+        "undrawnCreditUSD": snap.undrawnCreditUSD,
+    }

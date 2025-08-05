@@ -1,0 +1,12 @@
+groups:
+- name: quant_consumer.rules
+  rules:
+  - alert: QuantConsumerNoInserts
+    expr: increase(asset_snapshots_db_inserts_total[10m]) == 0
+    for: 15m
+    labels:
+      severity: warning
+      service: quant_consumer
+    annotations:
+      summary: "No asset snapshots inserted in 15m"
+      description: "asset_snapshots_db_inserts_total hasn’t increased in 10m. Check quant_consumer, upstream producers, or Postgres."

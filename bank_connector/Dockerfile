@@ -1,37 +1,31 @@
 # syntax=docker/dockerfile:1
-# Bank Connector service image
-FROM python:3.11-slim AS base
+FROM python:3.11-slim-bookworm AS builder
 
-# Install system dependencies (if any additional are needed, add here)
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends build-essential \
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Poetry
-ENV POETRY_VERSION=1.8.2 \
-    POETRY_HOME="/opt/poetry" \
-    PATH="$POETRY_HOME/bin:$PATH" \
-    POETRY_NO_INTERACTION=1
+ENV POETRY_VERSION=1.8.2 POETRY_HOME="/opt/poetry" POETRY_NO_INTERACTION=1
+ENV PATH="${POETRY_HOME}/bin:${PATH}"
 RUN pip install --no-cache-dir "poetry==$POETRY_VERSION"
 
-# Set workdir
 WORKDIR /app
-
-# Copy dependency files first for better layer caching
 COPY pyproject.toml poetry.lock ./
+# Recompute the lock inside the build so export is consistent with pyproject
+RUN poetry lock --no-interaction --no-ansi
+RUN poetry export -f requirements.txt --output /tmp/requirements.txt --without-hashes
 
-# Configure Poetry to not create a virtualenv, then install only main dependencies
-RUN poetry config virtualenvs.create false \
-    && poetry lock --no-update \
-    && poetry install --only main --no-ansi --no-root
+FROM python:3.11-slim-bookworm AS runtime
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy project source (entire repo so that shared modules are available)
+WORKDIR /app
+COPY --from=builder /tmp/requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt \
+    && pip install --no-cache-dir psycopg2-binary==2.9.9 \
+    && pip install --no-cache-dir "sqlmodel>=0.0.22"   # belt & suspenders
+
 COPY . .
-
 EXPOSE 8080 8001
-
-# run as non-root
-RUN adduser -D app 2>/dev/null || useradd -m app
+RUN useradd -m app || true
 USER app
-
 CMD ["uvicorn", "bank_connector.main:app", "--host", "0.0.0.0", "--port", "8080"]
