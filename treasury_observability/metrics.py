@@ -162,3 +162,18 @@ recon_anomalies_total = get_metric(
     ["bank_id", "type"],
 )
 
+# --- Sprint 7 gauges ---
+credit_capacity_available = get_metric(
+    Gauge,
+    "credit_capacity_available",
+    "Available credit facility capacity in USD",
+    ["bank_id"],
+)
+
+credit_outstanding_total = get_metric(
+    Gauge,
+    "credit_outstanding_total",
+    "Total outstanding credit facility draw in USD",
+    ["bank_id"],
+)
+
