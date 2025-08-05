@@ -44,5 +44,7 @@ RUN useradd -m app \
  && chown -R app:app /app /data
 USER app
 
-EXPOSE 8000
-CMD ["uvicorn", "quantengine.main:app", "--host", "0.0.0.0", "--port", "8000"]
+EXPOSE 8001
+HEALTHCHECK --interval=15s --timeout=3s --retries=5 CMD wget -qO- http://localhost:8001/ || exit 1
+# Entrypoint runs the consumer script that starts the metrics server on 8001
+# (If you start via python -m or similar, keep that here.)
