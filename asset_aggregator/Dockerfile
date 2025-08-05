@@ -45,4 +45,5 @@ RUN useradd -m app && chown -R app:app /app
 USER app
 
 EXPOSE 8000 8001
+HEALTHCHECK --interval=15s --timeout=3s --retries=5 CMD wget -qO- http://localhost:8000/healthz || exit 1
 CMD ["uvicorn", "asset_aggregator.api:app", "--host", "0.0.0.0", "--port", "8000"]
