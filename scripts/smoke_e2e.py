@@ -20,8 +20,10 @@ def main():
     wait_ready(f"{AGGR}/healthz")
     wait_ready(f"{BANK}/healthz")
 
-    # asset summary should respond
-    r = requests.get(f"{AGGR}/assets/summary", timeout=5)
+    # create at least one snapshot to avoid 404 on empty DB
+    r = requests.post(f"{AGGR}/snapshot", timeout=10, params={"bank_id": "O&L"})
+    assert r.ok, r.text
+    r = requests.get(f"{AGGR}/assets/summary", params={"bank_id": "O&L"}, timeout=5)
     assert r.status_code == 200 and isinstance(r.json(), dict), r.text
 
     # basic sweep order round-trip (Bank Connector)
@@ -36,8 +38,10 @@ def main():
     assert r.status_code == 200 and "id" in r.json(), r.text
 
     # metrics present
-    m = requests.get(f"{BANK}/metrics", timeout=5).text
-    assert ("treas_ltv_ratio" in m) or ("sweep_latency_seconds" in m), "expected metrics missing"
+    m_bank = requests.get(f"{BANK}/metrics", timeout=5).text
+    assert ("sweep_latency_seconds" in m_bank), "expected bank_connector metric missing"
+    m_aggr = requests.get(f"{AGGR}/metrics", timeout=5).text
+    assert ("treas_ltv_ratio" in m_aggr) or ("snapshot_latency_seconds" in m_aggr), "expected asset_aggregator metrics missing"
 
     print("SMOKE: OK")
 
