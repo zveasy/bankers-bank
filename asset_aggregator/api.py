@@ -10,7 +10,7 @@ from fastapi import FastAPI, Depends, HTTPException, Query
 from sqlmodel import Session, select
 
 from .db import engine, AssetSnapshot, init_db
-from .service import run_snapshot_once, KAFKA_BOOTSTRAP
+from .service import run_snapshot_once, KAFKA_BOOTSTRAP, reconcile_snapshot
 from treasury_observability.metrics import snapshot_latency_seconds
 from prometheus_client import make_asgi_app
 
@@ -52,9 +52,26 @@ def get_session() -> Session:
 
 @app.post("/snapshot")
 def create_snapshot(bank_id: str | None = None):
+    t0 = time.perf_counter()
     try:
-        res = run_snapshot_once(bank_id)
-        return {"ok": True, "result": res}
+        # fetch previous snapshot for reconciliation
+        prev = None
+        with Session(engine) as s:
+            row = s.exec(
+                select(AssetSnapshot)
+                .where(AssetSnapshot.bank_id == (bank_id or "demo-bank"))
+                .order_by(AssetSnapshot.ts.desc())
+            ).first()
+            if row:
+                prev = {
+                    "eligiblecollateralusd": row.eligibleCollateralUSD,
+                    "totalbalancesusd": row.totalBalancesUSD,
+                }
+        status, ltv = run_snapshot_once(bank_id)
+        # reconcile with mock current values (replace when wiring in real numbers)
+        reconcile_snapshot(prev, {"eligiblecollateralusd": 1_000_000.0, "totalbalancesusd": 5_000_000.0}, bank_id or "demo-bank")
+        snapshot_latency_seconds.observe(time.perf_counter() - t0)
+        return {"ok": True, "status": status, "ltv": ltv}
     except Exception as e:
         snapshot_latency_seconds.observe(time.perf_counter() - t0)
         raise HTTPException(status_code=500, detail=f"snapshot_failed: {e}") from e

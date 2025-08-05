@@ -140,3 +140,25 @@ snapshot_latency_seconds = get_metric(
     buckets=(0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10),
 )
 
+# --- Sprint 6 counters ---
+snapshot_success_total = get_metric(
+    Counter,
+    "snapshot_success_total",
+    "Number of successful asset snapshots",
+    ["bank_id"],
+)
+
+snapshot_failure_total = get_metric(
+    Counter,
+    "snapshot_failure_total",
+    "Number of failed asset snapshots",
+    ["bank_id"],
+)
+
+recon_anomalies_total = get_metric(
+    Counter,
+    "recon_anomalies_total",
+    "Number of reconciliation anomalies detected",
+    ["bank_id", "type"],
+)
+
