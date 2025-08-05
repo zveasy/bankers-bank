@@ -1,18 +1,19 @@
 # keep the build context lean
-.git
-.venv
-__pycache__
-.pytest_cache
+.git/
+*.pyc
+.venv/
+__pycache__/
+.pytest_cache/
 *.py[co]d
 *.db
 dist
 build
 sdk/python/dist
+docs/
+tests/
+integration_client/
+integration-client/
 
 # local tooling / caches
 *.log
 *.swp
-
-# large or dev-only folders that images don’t need
-tests
-integration_client

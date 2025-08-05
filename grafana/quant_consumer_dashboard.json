@@ -1,0 +1,41 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "Quant Consumer Overview",
+    "panels": [
+      {
+        "type": "graph",
+        "title": "RPS (Snapshots Consumed)",
+        "targets": [{"expr": "job:asset_snapshots_consumed_rps"}],
+        "datasource": "Prometheus"
+      },
+      {
+        "type": "graph",
+        "title": "DB Inserts/sec",
+        "targets": [{"expr": "job:asset_snapshots_db_inserts_rps"}],
+        "datasource": "Prometheus"
+      },
+      {
+        "type": "graph",
+        "title": "Processing Latency P95",
+        "targets": [{"expr": "job:asset_snapshot_process_latency_p95"}],
+        "datasource": "Prometheus"
+      },
+      {
+        "type": "graph",
+        "title": "Errors (5m rate)",
+        "targets": [{"expr": "rate(asset_snapshot_process_failures_total[5m])"}],
+        "datasource": "Prometheus"
+      },
+      {
+        "type": "stat",
+        "title": "Instance Up",
+        "targets": [{"expr": "up{instance=\"quant_consumer:8001\"}"}],
+        "datasource": "Prometheus"
+      }
+    ],
+    "schemaVersion": 30,
+    "version": 1,
+    "refresh": "30s"
+  }
+}

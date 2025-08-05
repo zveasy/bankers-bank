@@ -1,0 +1,65 @@
+{
+  "title": "Quant Consumer",
+  "timezone": "browser",
+  "uid": "quant-consumer",
+  "schemaVersion": 38,
+  "version": 1,
+  "tags": ["quant", "kafka", "prometheus"],
+  "templating": {
+    "list": [
+      {
+        "type": "query",
+        "name": "job",
+        "label": "job",
+        "datasource": {"type": "prometheus", "uid": "prom"},
+        "query": "label_values(up, job)",
+        "current": {"text": "services", "value": "services"},
+        "refresh": 2
+      },
+      {
+        "type": "query",
+        "name": "instance",
+        "label": "instance",
+        "datasource": {"type": "prometheus", "uid": "prom"},
+        "query": "label_values(up{job=\"$job\"}, instance)",
+        "current": {"text": "quant_consumer:8001", "value": "quant_consumer:8001"},
+        "refresh": 2
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Instance UP",
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [{ "expr": "up{job=\"$job\",instance=\"$instance\"}" }],
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}}
+    },
+    {
+      "type": "timeseries",
+      "title": "Snapshots Consumed /s",
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [{ "expr": "rate(asset_snapshots_consumed_total{job=\"$job\",instance=\"$instance\"}[$__rate_interval])" }]
+    },
+    {
+      "type": "timeseries",
+      "title": "DB Inserts /s",
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [{ "expr": "rate(asset_snapshots_db_inserts_total{job=\"$job\",instance=\"$instance\"}[$__rate_interval])" }]
+    },
+    {
+      "type": "timeseries",
+      "title": "Process Latency p95 (s)",
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [{
+        "expr": "histogram_quantile(0.95, sum by (le) (rate(asset_snapshot_process_latency_seconds_bucket{job=\"$job\",instance=\"$instance\"}[$__rate_interval])))"
+      }]
+    },
+    {
+      "type": "timeseries",
+      "title": "Process Failures /s",
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [{ "expr": "rate(asset_snapshot_process_failures_total{job=\"$job\",instance=\"$instance\"}[$__rate_interval])" }]
+    }
+  ]
+}
