@@ -178,6 +178,7 @@ jobs:
           KAFKA_BOOTSTRAP: 127.0.0.1:9092
           USE_MOCK_BALANCES: "1"
           MOCK_API_URL: http://127.0.0.1:8000
+          QUANT_DB_DIR: ${{ github.workspace }}/.data
         run: poetry run pytest -q
 
       - name: Dump service logs on failure
