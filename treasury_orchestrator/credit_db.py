@@ -14,6 +14,8 @@ class CreditFacility(SQLModel, table=True):
     __table_args__ = {"extend_existing": True}
 
     id: str = Field(primary_key=True)
+    bank_id: str = Field(default="test")
+    currency: str = Field(default="USD")
     limit: float
     drawn: float = 0.0
     ltv_limit: float

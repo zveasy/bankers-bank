@@ -22,7 +22,7 @@ app.mount("/metrics", make_asgi_app())
 async def healthz():
     return {"ok": True}
 
-BANK_API_URL = os.getenv("BANK_API_URL", "http://localhost:9999")
+
 
 
 @app.post("/sweep-order")
@@ -32,8 +32,9 @@ async def create_sweep_order(payload: SweepOrderRequest, session: Session = Depe
     # )
     xml = "<pain.001></pain.001>"  # Stubbed XML
     start = time.perf_counter()
+    bank_api_url = os.getenv("BANK_API_URL", "http://localhost:8000")
     async with httpx.AsyncClient() as client:
-        await client.post(BANK_API_URL, data=xml, headers={"Content-Type": "application/xml"})
+        await client.post(bank_api_url, data=xml, headers={"Content-Type": "application/xml"})
     sweep_latency_seconds.observe(time.perf_counter() - start)
 
     order = SweepOrder(

@@ -8,7 +8,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.engine.url import make_url
 
 # Determine writable directory for database files.
-db_dir = os.getenv("QUANT_DB_DIR", "/data")
+db_dir = os.getenv("QUANT_DB_DIR", ".data")
 try:
     Path(db_dir).mkdir(parents=True, exist_ok=True)
 except PermissionError:

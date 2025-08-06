@@ -28,7 +28,7 @@ log = logging.getLogger("quant_consumer")
 # ---------------- Test helper ----------------
 
 def process_message(message: bytes, redis_conn):
-    """Parse snapshot message from Kafka and update Redis cache.
+    """Parse snapshot message from Kafka and update Redis cache."""
 
     Expected JSON: {"bank_id": str, "cash": float}
     This helper is used by unit tests (tests/test_quantengine.py).
@@ -48,6 +48,40 @@ def process_message(message: bytes, redis_conn):
         redis_conn.set(f"cash_available:{bank_id}", cash)
     except Exception as exc:
         log.error("redis set failed: %s", exc)
+
+# ------------------------------------------------------------------
+# Pure DB helper for unit tests
+# ------------------------------------------------------------------
+from typing import Tuple
+
+def process_message_db(message_bytes: bytes, conn) -> Tuple[str, str, float, float, float]:
+    """Parse snapshot JSON and upsert one row into assetsnapshot.
+
+    Returns (bank_id, ts_iso, eligibleUSD, balancesUSD, undrawnUSD).
+    """
+    try:
+        payload = json.loads(message_bytes or b"{}")
+    except Exception:
+        payload = {}
+
+    bank_id = payload.get("bank_id") or "test"
+    ts_val = payload.get("ts") or payload.get("timestamp")
+    try:
+        from dateutil.parser import isoparse
+        ts_iso = isoparse(ts_val).isoformat().replace("+00:00", "Z") if isinstance(ts_val, str) else ts_val
+    except Exception:
+        ts_iso = ts_val
+
+    ec = get_field(payload, "eligibleCollateralUSD", "eligiblecollateralusd")
+    tb = get_field(payload, "totalBalancesUSD", "totalbalancesusd")
+    uc = get_field(payload, "undrawnCreditUSD", "undrawncreditusd")
+
+    args = (bank_id, ts_iso, ec, tb, uc)
+
+    with conn.cursor() as cur:
+        cur.execute(_SNAPSHOT_SQL, args)
+    conn.commit()
+    return args
 
 
 # ---- prometheus (served from inside this process too)
