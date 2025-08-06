@@ -8,11 +8,29 @@ on:
 
 jobs:
   # ────────────────────────────────
-  # Go unit tests + Docker builds
+  # Detect whether the Go service exists
+  # ────────────────────────────────
+  detect-go:
+    runs-on: ubuntu-latest
+    outputs:
+      has_go: ${{ steps.check.outputs.has_go }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: check
+        run: |
+          if [ -f services/ledger/go.mod ]; then
+            echo "has_go=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_go=false" >> $GITHUB_OUTPUT
+          fi
+
+  # ────────────────────────────────
+  # Go unit tests + Docker build (only if present)
   # ────────────────────────────────
   test-go:
     runs-on: ubuntu-latest
-    if: ${{ hashFiles('services/ledger/go.mod') != '' }}
+    needs: detect-go
+    if: ${{ needs.detect-go.outputs.has_go == 'true' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -28,7 +46,6 @@ jobs:
       - name: Run Go tests
         working-directory: services/ledger
         run: go test ./... -v
-      
 
       - name: Build ledger image
         working-directory: services/ledger
@@ -36,7 +53,6 @@ jobs:
 
   # ────────────────────────────────
   # SDK wheel / integration matrix
-  # (from feature/mock-api-and-docs)
   # ────────────────────────────────
   python-sdk-test:
     runs-on: ubuntu-latest
@@ -63,3 +79,5 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y netcat-openbsd || sudo apt-get install -y netcat
+
+      - name: Start
