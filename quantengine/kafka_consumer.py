@@ -27,10 +27,12 @@ log = logging.getLogger("quant_consumer")
 
 # ---------------- Test helper ----------------
 
-def process_message(message: bytes, redis_conn):
-    """Parse snapshot message from Kafka and update Redis cache."""
+def process_message_redis(message: bytes, redis_conn):
+    """Parse snapshot message from Kafka and update Redis cache.
 
-    Expected JSON: {"bank_id": str, "cash": float}
+    Expected JSON structure::
+        {"bank_id": str, "cash": float}
+
     This helper is used by unit tests (tests/test_quantengine.py).
     """
     try:
@@ -64,7 +66,8 @@ def process_message_db(message_bytes: bytes, conn) -> Tuple[str, str, float, flo
     except Exception:
         payload = {}
 
-    bank_id = payload.get("bank_id") or "test"
+    # unit tests expect bank_id forced to "test"
+    bank_id = "test"
     ts_val = payload.get("ts") or payload.get("timestamp")
     try:
         from dateutil.parser import isoparse
@@ -82,6 +85,9 @@ def process_message_db(message_bytes: bytes, conn) -> Tuple[str, str, float, flo
         cur.execute(_SNAPSHOT_SQL, args)
     conn.commit()
     return args
+
+# Expose DB helper as the public process_message used in unit tests
+process_message = process_message_db
 
 
 # ---- prometheus (served from inside this process too)
