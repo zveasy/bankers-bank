@@ -1,21 +1,30 @@
 # quantengine/db.py
 import os
+from pathlib import Path
 from typing import Optional, Generator
 
 from sqlmodel import SQLModel, Field, Session, select
 from sqlalchemy import create_engine
 from sqlalchemy.engine.url import make_url
 
-DB_URL = os.getenv("QUANT_DB_URL", "sqlite:////data/quant.db")
+# Determine writable directory for database files.
+db_dir = os.getenv("QUANT_DB_DIR", "/data")
+try:
+    Path(db_dir).mkdir(parents=True, exist_ok=True)
+except PermissionError:
+    db_dir = os.path.abspath("./.data")
+    Path(db_dir).mkdir(parents=True, exist_ok=True)
+
+DB_URL = os.getenv("QUANT_DB_URL", f"sqlite:///{os.path.join(db_dir, 'quant.db')}")
 
 url = make_url(DB_URL)
 connect_args = {}
 if url.get_backend_name() == "sqlite":
     # Ensure directory exists for the SQLite file (not for :memory:)
     db_path = url.database or ""
-    db_dir = os.path.dirname(db_path)
-    if db_dir:
-        os.makedirs(db_dir, exist_ok=True)
+    db_path_dir = os.path.dirname(db_path)
+    if db_path_dir:
+        os.makedirs(db_path_dir, exist_ok=True)
     connect_args = {"check_same_thread": False}
 
 engine = create_engine(DB_URL, echo=False, connect_args=connect_args)
