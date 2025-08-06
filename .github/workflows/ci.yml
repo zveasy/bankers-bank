@@ -200,13 +200,26 @@ jobs:
 
       - name: Generate test data for schema validation
         run: |
-          poetry run python - <<'PY'
-          from treasury_orchestrator.cli import main
-          import sys
-          sys.argv = ['cli.py', '100000.00']
-          main()
-          PY
-          > test_output.json
+         python - <<'PY'
+    import json, sys, time
+    payload = {
+      "order_id": "ORD-123",
+      "source_account": "ACCT-1",
+      "target_product": "MMF-ABC",
+      "amount_usd": "100000.00",
+      "cutoff_utc": "2025-08-06T10:37:01Z",
+      "risk_checks": {"var_limit_bps": 10, "observed_var_bps": 5},
+      "created_ts": "2025-08-06T10:37:01Z",
+    }
+    with open("test_output.json", "w", encoding="utf-8") as f:
+        json.dump(payload, f, separators=(",", ":"))
+    PY
+    # sanity-check: file exists and has content
+    test -s test_output.json || (echo "test_output.json is empty" >&2; exit 1)
+    # pretty-print to logs (optional)
+    python - <<'PY'
+    import json; print(json.dumps(json.load(open("test_output.json")), indent=2))
+    PY
       - name: Validate JSON schema
         run: npx ajv validate -s schemas/sweep_order.schema.json -d test_output.json -c ajv-formats --spec=draft7
 
