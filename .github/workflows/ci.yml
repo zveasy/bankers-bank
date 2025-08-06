@@ -208,7 +208,7 @@ jobs:
           PY
           > test_output.json
       - name: Validate JSON schema
-        run: npx ajv validate -s schemas/sweep_order.schema.json -d test_output.json -c ajv-formats --spec=draft2020
+        run: npx ajv validate -s schemas/sweep_order.schema.json -d test_output.json -c ajv-formats --spec=draft7
 
       - name: Run linting
         run: |
