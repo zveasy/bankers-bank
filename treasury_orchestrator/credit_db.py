@@ -16,9 +16,12 @@ class CreditFacility(SQLModel, table=True):
     id: str = Field(primary_key=True)
     bank_id: str = Field(default="test")
     currency: str = Field(default="USD")
+    cap: float = 0.0
+    buffer: float = 0.0
     limit: float
     drawn: float = 0.0
     ltv_limit: float
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
 
 
 class CreditTxn(SQLModel, table=True):
