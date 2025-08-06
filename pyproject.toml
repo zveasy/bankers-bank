@@ -27,6 +27,7 @@ prometheus-client = "^0.20"
 aiokafka = "^0.10"
 testcontainers = {version = "^4.3", extras=["redpanda"]}
 jsonschema = "^4.22"
+python-dateutil = "^2.9.0.post0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.0"
