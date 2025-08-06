@@ -195,8 +195,8 @@ jobs:
         with:
           node-version: '18'
 
-      - name: Install AJV CLI
-        run: npm install -g ajv-cli
+      - name: Install AJV CLI + formats
+        run: npm install -g ajv-cli ajv-formats
 
       - name: Generate test data for schema validation
         run: |
@@ -208,7 +208,7 @@ jobs:
           PY
           > test_output.json
       - name: Validate JSON schema
-        run: npx ajv validate -s schemas/sweep_order.schema.json -d test_output.json
+        run: npx ajv validate -s schemas/sweep_order.schema.json -d test_output.json -c ajv-formats --spec=draft2020
 
       - name: Run linting
         run: |
