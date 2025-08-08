@@ -4,8 +4,8 @@ from datetime import datetime
 from sqlmodel import Session, SQLModel, create_engine
 
 from asset_aggregator.db import AssetSnapshot
-from credit_facility.models import CreditDraw, CreditRepayment, CreditFacility
-from credit_facility.service import CreditFacilityService, _POLICY
+from credit_facility.models import CreditDraw, CreditFacility, CreditRepayment
+from credit_facility.service import _POLICY, CreditFacilityService
 
 # Use in-memory SQLite for fast, isolated tests
 engine = create_engine("sqlite:///:memory:", echo=False)
@@ -41,8 +41,16 @@ def test_capacity_with_draws_and_buffer():
         _seed_snapshot(s, bank, eligible=1_000_000, undrawn=0)
         # policy cap 5_000_000, buffer 100_000
         # create one draw 400k and one repayment 50k -> outstanding 350k
-        s.add(CreditDraw(idempotency_key="k1", bank_id=bank, amount=400_000, currency="USD"))
-        s.add(CreditRepayment(bank_id=bank, amount=50_000, currency="USD"))
+        s.add(
+            CreditDraw(
+                idempotency_key="k1", bank_id=bank, amount=400_000, currency="USD"
+            )
+        )
+        s.add(
+            CreditRepayment(
+                idempotency_key="k2", bank_id=bank, amount=50_000, currency="USD"
+            )
+        )
         s.commit()
         svc = CreditFacilityService(session=s)
         available = svc.capacity(bank)
