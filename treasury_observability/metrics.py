@@ -1,12 +1,16 @@
 # Move get_metric and _METRICS definition to top so it is available for metric instantiation
 from __future__ import annotations
+
 import os
 import threading
 from typing import Any, Dict, Tuple, Type
-from prometheus_client import Gauge, Histogram, Summary, Counter, start_http_server
+
+from prometheus_client import (Counter, Gauge, Histogram, Summary,
+                               start_http_server)
 
 # Registration helper (avoid duplicate collectors)
 _METRICS: Dict[Tuple[Type[Any], str], Any] = {}
+
 
 def get_metric(cls: Type[Any], name: str, *args, **kwargs):
     key = (cls, name)
@@ -16,24 +20,28 @@ def get_metric(cls: Type[Any], name: str, *args, **kwargs):
     _METRICS[key] = metric
     return metric
 
+
 # Asset snapshot metrics for quant_consumer
 asset_snapshots_db_inserts_total = get_metric(
-    Counter, "asset_snapshots_db_inserts_total",
+    Counter,
+    "asset_snapshots_db_inserts_total",
     "Total asset snapshot rows inserted (or upserted) into Postgres",
-    ["service", "env"]
+    ["service", "env"],
 )
 
 asset_snapshot_process_failures_total = get_metric(
-    Counter, "asset_snapshot_process_failures_total",
+    Counter,
+    "asset_snapshot_process_failures_total",
     "Total failures while processing snapshot messages",
-    ["service", "env"]
+    ["service", "env"],
 )
 
 asset_snapshot_process_latency_seconds = get_metric(
-    Histogram, "asset_snapshot_process_latency_seconds",
+    Histogram,
+    "asset_snapshot_process_latency_seconds",
     "Latency to process a single snapshot message end-to-end (seconds)",
     ["service", "env"],
-    buckets=(0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10)
+    buckets=(0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10),
 )
 # treasury_observability/metrics.py
 """
@@ -54,7 +62,8 @@ import os
 import threading
 from typing import Any, Dict, Tuple, Type
 
-from prometheus_client import Gauge, Histogram, Summary, Counter, start_http_server
+from prometheus_client import (Counter, Gauge, Histogram, Summary,
+                               start_http_server)
 
 # ----------------------------
 # Optional standalone server
@@ -177,3 +186,18 @@ credit_outstanding_total = get_metric(
     ["bank_id"],
 )
 
+# --- Sprint 7 PR-2: credit actions metrics ---
+credit_actions_total = get_metric(
+    Counter,
+    "credit_actions_total",
+    "Credit actions by outcome",
+    ["action", "outcome", "provider"],
+)
+
+credit_provider_latency_seconds = get_metric(
+    Histogram,
+    "credit_provider_latency_seconds",
+    "Latency of provider calls",
+    ["action", "provider"],
+    buckets=(0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10),
+)
