@@ -10,11 +10,9 @@ from typing import Dict
 from sqlmodel import Session, select
 
 from asset_aggregator.db import AssetSnapshot, get_session
-from credit_facility.models import CreditFacility, CreditDraw, CreditRepayment
-from treasury_observability.metrics import (
-    credit_capacity_available,
-    credit_outstanding_total,
-)
+from credit_facility.models import CreditDraw, CreditFacility, CreditRepayment
+from treasury_observability.metrics import (credit_capacity_available,
+                                            credit_outstanding_total)
 
 # ---------------------------------------------------------------------------
 # Policy loading
@@ -43,6 +41,7 @@ _POLICY = _load_policy()
 # ---------------------------------------------------------------------------
 # Service class
 # ---------------------------------------------------------------------------
+
 
 class CreditFacilityService:
     """Compute available capacity for a bank."""
