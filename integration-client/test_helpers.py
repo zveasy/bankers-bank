@@ -8,10 +8,11 @@ if str(SDK_PATH) not in sys.path:
 
 try:
     import requests
+
     REQUESTS_AVAILABLE = True
 except ImportError:
     REQUESTS_AVAILABLE = False
-    
+
 
 def clear_collateral_registry():
     requests.post("http://127.0.0.1:8000/collateral/reset")

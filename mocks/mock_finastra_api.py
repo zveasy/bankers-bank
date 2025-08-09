@@ -1,9 +1,11 @@
 import uuid
 from typing import Any, Dict
 
-from fastapi import Body, FastAPI, Header, HTTPException, Query, Request, Response
+from fastapi import (Body, FastAPI, Header, HTTPException, Query, Request,
+                     Response)
 
 app = FastAPI()
+
 
 # --- Minimal endpoints for test_bank_connector.py ---
 @app.post("/sweep-order")
@@ -11,10 +13,13 @@ async def sweep_order(request: Request):
     # Accept any payload and return 200 OK
     return Response(content="<ok/>", media_type="application/xml", status_code=200)
 
+
 @app.post("/payment-status")
 async def payment_status(request: Request):
     # Accept any payload and return 200 OK
     return Response(content="<ok/>", media_type="application/xml", status_code=200)
+
+
 import uuid
 from typing import Any, Dict
 
@@ -121,9 +126,15 @@ def get_account(account_id: str):
 
 
 @app.get("/corporate/channels/accounts/me/v1/accounts/{account_id}/balances")
-def get_account_balances(account_id: str, error: str = None, authorization: str = Header(None)):
+def get_account_balances(
+    account_id: str, error: str = None, authorization: str = Header(None)
+):
     # Auth check: require exact token value 'Bearer dummy'
-    if not authorization or not authorization.startswith("Bearer ") or authorization not in ("Bearer dummy", "Bearer testtoken"):
+    if (
+        not authorization
+        or not authorization.startswith("Bearer ")
+        or authorization not in ("Bearer dummy", "Bearer testtoken")
+    ):
         raise HTTPException(status_code=401, detail="Unauthorized")
     # Simulate error based on query
     if error == "500":
@@ -231,8 +242,13 @@ def get_collateral():
 @app.get("/collaterals")
 def list_collaterals(accountId: str = Query(...)):
     """Return collateral items for an account."""
-    items = [c for c in collateral_registry if c.get("accountId", "") == accountId or c.get("address", "") == accountId]
+    items = [
+        c
+        for c in collateral_registry
+        if c.get("accountId", "") == accountId or c.get("address", "") == accountId
+    ]
     return {"items": items}
+
 
 @app.get("/consumers/{consumer_id}/accounts/extendedWithDetails")
 def get_accounts_with_details(consumer_id: str):
@@ -249,6 +265,7 @@ def get_accounts_with_details(consumer_id: str):
         )
     return {"items": items}
 
+
 @app.post("/ltv/calculate")
 def calculate_ltv(payload: dict = Body(...)):
     """
@@ -259,13 +276,18 @@ def calculate_ltv(payload: dict = Body(...)):
     collateral_value = payload.get("collateral_value")
     loan_amount = payload.get("loan_amount")
     if collateral_value is None or loan_amount is None:
-        raise HTTPException(status_code=400, detail="Missing collateral_value or loan_amount")
-    if not isinstance(collateral_value, (int, float)) or not isinstance(loan_amount, (int, float)):
+        raise HTTPException(
+            status_code=400, detail="Missing collateral_value or loan_amount"
+        )
+    if not isinstance(collateral_value, (int, float)) or not isinstance(
+        loan_amount, (int, float)
+    ):
         raise HTTPException(status_code=400, detail="Values must be numeric")
     if collateral_value <= 0:
         raise HTTPException(status_code=400, detail="collateral_value must be positive")
     ltv = loan_amount / collateral_value
     return {"ltv": ltv}
+
 
 @app.post("/collateral/reset")
 def reset_collateral():

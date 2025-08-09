@@ -2,14 +2,15 @@ import asyncio
 from typing import Optional
 
 import httpx
+
 try:  # pragma: no cover - optional dependency
     from apscheduler.schedulers.asyncio import AsyncIOScheduler
 except Exception:  # pragma: no cover - APScheduler missing
     AsyncIOScheduler = None
-from sqlmodel import Session
-from treasury_observability.metrics import credit_draw_latency_seconds
-
 from bankersbank.finastra import FinastraAPIClient
+from sqlmodel import Session
+
+from treasury_observability.metrics import credit_draw_latency_seconds
 
 from .credit_db import CreditFacility, CreditTxn
 
@@ -17,7 +18,9 @@ from .credit_db import CreditFacility, CreditTxn
 class JpmLiquidityClient:
     """Minimal JPM liquidity adapter using OAuth2 client credentials."""
 
-    def __init__(self, base_url: str, client_id: str, client_secret: str, token_url: str):
+    def __init__(
+        self, base_url: str, client_id: str, client_secret: str, token_url: str
+    ):
         self.base_url = base_url.rstrip("/")
         self.client_id = client_id
         self.client_secret = client_secret
@@ -44,14 +47,20 @@ class JpmLiquidityClient:
     async def post_draw(self, amount: float, currency: str) -> httpx.Response:
         url = f"{self.base_url}/draw"
         async with httpx.AsyncClient() as client:
-            resp = await client.post(url, json={"amount": amount, "currency": currency}, headers=await self._headers())
+            resp = await client.post(
+                url,
+                json={"amount": amount, "currency": currency},
+                headers=await self._headers(),
+            )
             resp.raise_for_status()
             return resp
 
     async def post_repay(self, amount: float) -> httpx.Response:
         url = f"{self.base_url}/repay"
         async with httpx.AsyncClient() as client:
-            resp = await client.post(url, json={"amount": amount}, headers=await self._headers())
+            resp = await client.post(
+                url, json={"amount": amount}, headers=await self._headers()
+            )
             resp.raise_for_status()
             return resp
 
@@ -59,7 +68,13 @@ class JpmLiquidityClient:
 class CreditFacilityService:
     """Business logic for managing a credit facility."""
 
-    def __init__(self, facility: CreditFacility, fin_client: FinastraAPIClient, jpm_client: JpmLiquidityClient, session: Session):
+    def __init__(
+        self,
+        facility: CreditFacility,
+        fin_client: FinastraAPIClient,
+        jpm_client: JpmLiquidityClient,
+        session: Session,
+    ):
         self.facility = facility
         self.fin_client = fin_client
         self.jpm_client = jpm_client
@@ -110,5 +125,3 @@ class CreditFacilityService:
         )
         scheduler.start()
         self.scheduler = scheduler
-
-

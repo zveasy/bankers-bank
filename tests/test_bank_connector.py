@@ -1,4 +1,5 @@
 import importlib.util
+
 import pytest
 
 HTTPX_AVAILABLE = importlib.util.find_spec("httpx") is not None
@@ -6,6 +7,7 @@ pytestmark = pytest.mark.skipif(not HTTPX_AVAILABLE, reason="httpx not installed
 
 if HTTPX_AVAILABLE:
     from fastapi.testclient import TestClient
+
     from bank_connector.main import app
 
     @pytest.mark.enable_socket
@@ -29,7 +31,13 @@ if HTTPX_AVAILABLE:
         client = TestClient(app)
         client.post(
             "/sweep-order",
-            json={"order_id": "abc", "amount": 1, "currency": "USD", "debtor": "A", "creditor": "B"},
+            json={
+                "order_id": "abc",
+                "amount": 1,
+                "currency": "USD",
+                "debtor": "A",
+                "creditor": "B",
+            },
         )
         resp = client.post("/payment-status", data=xml, headers={"X-Order-ID": "abc"})
         assert resp.status_code == 200
