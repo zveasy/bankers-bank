@@ -307,7 +307,14 @@ async def facility_status(bank_id: str, session: Session = Depends(get_session))
 def create_app() -> FastAPI:  # pragma: no cover
     app = FastAPI(title="Credit Facility API")
     app.include_router(router)
-    app.mount("/metrics", make_asgi_app())
+    # ensure /metrics mounted exactly once
+    if not any(r.path == "/metrics" for r in app.routes):
+        app.mount("/metrics", make_asgi_app())
+
+    @app.get("/healthz", tags=["health"])
+    async def healthz():
+        return {"ok": True}
+
     return app
 
 
