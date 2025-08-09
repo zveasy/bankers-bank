@@ -1,9 +1,9 @@
 import os
-from typing import Optional
 from decimal import Decimal
+from typing import Optional
 
 from sqlalchemy import Column, Numeric
-from sqlmodel import Field, SQLModel, create_engine, Session
+from sqlmodel import Field, Session, SQLModel, create_engine
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./bank_connector.db")
 

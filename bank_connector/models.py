@@ -1,8 +1,10 @@
 from decimal import Decimal
 from typing import Literal
-from pydantic import BaseModel, Field, constr, condecimal
+
+from pydantic import BaseModel, Field, condecimal, constr
 
 ISO4217 = constr(min_length=3, max_length=3, pattern=r"^[A-Z]{3}$")
+
 
 class SweepOrderRequest(BaseModel):
     order_id: str = Field(..., min_length=1)
@@ -11,8 +13,10 @@ class SweepOrderRequest(BaseModel):
     debtor: str
     creditor: str
 
+
 class SweepOrderCreated(BaseModel):
     id: int
+
 
 class PaymentStatusResponse(BaseModel):
     status: Literal["SENT", "UNKNOWN", "ACCEPTED", "REJECTED", "SETTLED"]

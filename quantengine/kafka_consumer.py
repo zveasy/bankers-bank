@@ -4,18 +4,17 @@ import logging
 import os
 import signal
 import sys
-from contextlib import asynccontextmanager
-import psycopg2
-from dateutil.parser import isoparse  # pip install python-dateutil
 import time
+from contextlib import asynccontextmanager
+
+import psycopg2
+from aiokafka import AIOKafkaConsumer
+from dateutil.parser import isoparse  # pip install python-dateutil
+from prometheus_client import start_http_server
 
 from treasury_observability.metrics import (
-    asset_snapshots_db_inserts_total,
     asset_snapshot_process_failures_total,
-    asset_snapshot_process_latency_seconds,
-)
-from aiokafka import AIOKafkaConsumer
-from prometheus_client import start_http_server
+    asset_snapshot_process_latency_seconds, asset_snapshots_db_inserts_total)
 
 # ---- logging (configurable via LOG_LEVEL, default INFO)
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
@@ -26,6 +25,7 @@ logging.basicConfig(
 log = logging.getLogger("quant_consumer")
 
 # ---------------- Test helper ----------------
+
 
 def process_message_redis(message: bytes, redis_conn):
     """Parse snapshot message from Kafka and update Redis cache.
@@ -39,7 +39,9 @@ def process_message_redis(message: bytes, redis_conn):
         payload = json.loads(message)
     except Exception as exc:
         log.error("invalid json: %s", exc)
-        asset_snapshot_process_failures_total.labels(service="quant_consumer", env=os.getenv("ENV", "dev")).inc()
+        asset_snapshot_process_failures_total.labels(
+            service="quant_consumer", env=os.getenv("ENV", "dev")
+        ).inc()
         return
 
     bank_id = payload.get("bank_id") or "unknown"
@@ -51,12 +53,16 @@ def process_message_redis(message: bytes, redis_conn):
     except Exception as exc:
         log.error("redis set failed: %s", exc)
 
+
 # ------------------------------------------------------------------
 # Pure DB helper for unit tests
 # ------------------------------------------------------------------
 from typing import Tuple
 
-def process_message_db(message_bytes: bytes, conn) -> Tuple[str, str, float, float, float]:
+
+def process_message_db(
+    message_bytes: bytes, conn
+) -> Tuple[str, str, float, float, float]:
     """Parse snapshot JSON and upsert one row into assetsnapshot.
 
     Returns (bank_id, ts_iso, eligibleUSD, balancesUSD, undrawnUSD).
@@ -71,7 +77,12 @@ def process_message_db(message_bytes: bytes, conn) -> Tuple[str, str, float, flo
     ts_val = payload.get("ts") or payload.get("timestamp")
     try:
         from dateutil.parser import isoparse
-        ts_iso = isoparse(ts_val).isoformat().replace("+00:00", "Z") if isinstance(ts_val, str) else ts_val
+
+        ts_iso = (
+            isoparse(ts_val).isoformat().replace("+00:00", "Z")
+            if isinstance(ts_val, str)
+            else ts_val
+        )
     except Exception:
         ts_iso = ts_val
 
@@ -86,6 +97,7 @@ def process_message_db(message_bytes: bytes, conn) -> Tuple[str, str, float, flo
     conn.commit()
     return args
 
+
 # Expose DB helper as the public process_message used in unit tests
 process_message = process_message_db
 
@@ -95,7 +107,9 @@ METRICS_PORT = int(os.getenv("METRICS_PORT", "8001"))
 start_http_server(METRICS_PORT, addr="0.0.0.0")
 
 # ---- config
-BOOTSTRAP = sys.argv[1] if len(sys.argv) > 1 else os.getenv("KAFKA_BOOTSTRAP", "redpanda:9092")
+BOOTSTRAP = (
+    sys.argv[1] if len(sys.argv) > 1 else os.getenv("KAFKA_BOOTSTRAP", "redpanda:9092")
+)
 TOPIC = os.getenv("KAFKA_TOPIC", "asset_snapshots")
 GROUP_ID = os.getenv("KAFKA_GROUP_ID", "quant-consumer")
 AUTO_OFFSET_RESET = os.getenv("KAFKA_AUTO_OFFSET_RESET", "earliest")
@@ -103,20 +117,22 @@ AUTO_OFFSET_RESET = os.getenv("KAFKA_AUTO_OFFSET_RESET", "earliest")
 DATABASE_URL = os.getenv("ASSET_DB_URL", "postgresql://bank:bank@localhost:5432/bank")
 
 # ---- SQL for insert/update, all lowercased column names
-_SNAPSHOT_SQL = '''
+_SNAPSHOT_SQL = """
 INSERT INTO assetsnapshot ("bank_id", "ts", "eligiblecollateralusd", "totalbalancesusd", "undrawncreditusd")
 VALUES (%s, %s, %s, %s, %s)
 ON CONFLICT ("bank_id", "ts") DO UPDATE SET
   "eligiblecollateralusd" = EXCLUDED."eligiblecollateralusd",
   "totalbalancesusd"      = EXCLUDED."totalbalancesusd",
   "undrawncreditusd"      = EXCLUDED."undrawncreditusd"
-'''
+"""
+
 
 def get_field(d: dict, *names):
     for n in names:
         if n in d:
             return d[n]
     return None
+
 
 def _parse_ts(ts_value):
     if ts_value is None:
@@ -129,18 +145,25 @@ def _parse_ts(ts_value):
             return ts_value  # fallback, let psycopg2 try
     return ts_value
 
+
 def _pg_connect(retries=10, delay=3):
     for attempt in range(retries):
         try:
             return psycopg2.connect(DATABASE_URL)
         except psycopg2.OperationalError as e:
-            log.warning(f"Postgres not available yet (attempt {attempt+1}/{retries}): {e}")
+            log.warning(
+                f"Postgres not available yet (attempt {attempt+1}/{retries}): {e}"
+            )
             time.sleep(delay)
-    raise psycopg2.OperationalError(f"Could not connect to Postgres after {retries} attempts.")
+    raise psycopg2.OperationalError(
+        f"Could not connect to Postgres after {retries} attempts."
+    )
+
 
 def _ensure_snapshot_uniqueness(conn):
     with conn.cursor() as cur:
-        cur.execute("""
+        cur.execute(
+            """
             DO $$
             BEGIN
                 IF NOT EXISTS (
@@ -151,8 +174,10 @@ def _ensure_snapshot_uniqueness(conn):
                 END IF;
             END
             $$;
-        """)
+        """
+        )
     conn.commit()
+
 
 def _insert_snapshot(conn, bank_id: str, payload: dict):
     # All fields are .get so None/NULL is always allowed
@@ -162,12 +187,14 @@ def _insert_snapshot(conn, bank_id: str, payload: dict):
             (
                 bank_id,
                 _parse_ts(get_field(payload, "ts", "timestamp")),
-                payload.get("eligiblecollateralusd") or payload.get("eligibleCollateralUSD"),
+                payload.get("eligiblecollateralusd")
+                or payload.get("eligibleCollateralUSD"),
                 payload.get("totalbalancesusd") or payload.get("totalBalancesUSD"),
                 payload.get("undrawncreditusd") or payload.get("undrawnCreditUSD"),
             ),
         )
     conn.commit()
+
 
 @asynccontextmanager
 async def kafka_consumer():
@@ -185,11 +212,16 @@ async def kafka_consumer():
             await consumer.start()
             log.info(
                 "Consumer started bootstrap=%s topic=%s group_id=%s auto_offset_reset=%s",
-                BOOTSTRAP, TOPIC, GROUP_ID, AUTO_OFFSET_RESET,
+                BOOTSTRAP,
+                TOPIC,
+                GROUP_ID,
+                AUTO_OFFSET_RESET,
             )
             break
         except Exception as e:
-            log.warning(f"Kafka not available yet (attempt {attempt+1}/{max_retries}): {e}")
+            log.warning(
+                f"Kafka not available yet (attempt {attempt+1}/{max_retries}): {e}"
+            )
             await asyncio.sleep(delay)
     else:
         raise RuntimeError(f"Could not connect to Kafka after {max_retries} attempts.")
@@ -199,10 +231,13 @@ async def kafka_consumer():
         await consumer.stop()
         log.info("Consumer stopped")
 
+
 async def run():
     conn = _pg_connect()
     log.info("Connected to Postgres")
-    log.info(f"Kafka bootstrap server: {BOOTSTRAP} (override with KAFKA_BOOTSTRAP env var)")
+    log.info(
+        f"Kafka bootstrap server: {BOOTSTRAP} (override with KAFKA_BOOTSTRAP env var)"
+    )
     _ensure_snapshot_uniqueness(conn)
     try:
         async with kafka_consumer() as consumer:
@@ -218,7 +253,9 @@ async def run():
                     ).inc()
                     log.info(
                         "Inserted snapshot offset=%s key=%s partition=%s",
-                        msg.offset, key, msg.partition
+                        msg.offset,
+                        key,
+                        msg.partition,
                     )
                 except Exception:
                     asset_snapshot_process_failures_total.labels(
@@ -234,6 +271,7 @@ async def run():
         conn.close()
         log.info("Postgres connection closed")
 
+
 def main():
     loop = asyncio.get_event_loop()
     stop = asyncio.Event()
@@ -246,16 +284,20 @@ def main():
             loop.add_signal_handler(sig, _graceful)
         except NotImplementedError:
             # Windows compatibility
-            signal.signal(sig, lambda *_: asyncio.get_event_loop().call_soon_threadsafe(stop.set))
+            signal.signal(
+                sig, lambda *_: asyncio.get_event_loop().call_soon_threadsafe(stop.set)
+            )
 
     task = loop.create_task(run())
     loop.create_task(_wait_for_stop(stop, task))
     loop.run_until_complete(task)
 
+
 async def _wait_for_stop(stop_event: asyncio.Event, task: asyncio.Task):
     await stop_event.wait()
     if not task.done():
         task.cancel()
+
 
 if __name__ == "__main__":
     # Optional: debug kafka on boot
@@ -269,10 +311,13 @@ if __name__ == "__main__":
                 auto_offset_reset=AUTO_OFFSET_RESET,
             )
             await consumer.start()
-            logging.info(f"[DEBUG] Kafka consumer started for topic '{TOPIC}' on bootstrap '{BOOTSTRAP}'")
+            logging.info(
+                f"[DEBUG] Kafka consumer started for topic '{TOPIC}' on bootstrap '{BOOTSTRAP}'"
+            )
             await consumer.stop()
         except Exception as e:
             logging.error(f"[DEBUG] Kafka consumer failed to start: {e}", exc_info=True)
+
     try:
         asyncio.run(debug_kafka())
     except Exception as e:

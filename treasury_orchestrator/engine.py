@@ -1,6 +1,7 @@
-from decimal import Decimal
 from datetime import datetime, timezone
-from .models import SweepOrder, RiskChecks
+from decimal import Decimal
+
+from .models import RiskChecks, SweepOrder
 
 
 class DecisionEngine:

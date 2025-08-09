@@ -1,19 +1,26 @@
 import os
-from fastapi import FastAPI, Depends, HTTPException
+
 import redis
+from fastapi import Depends, FastAPI, HTTPException
 from prometheus_client import make_asgi_app
 from sqlmodel import Session
 
-from .db import init_db, get_session, get_cash
+from .db import get_cash, get_session, init_db
 
 # --- Metrics (safe fallback if treasury_observability is missing)
 try:
     # mounting /metrics via ASGI in this service; the helper module should NOT start its own server
-    from treasury_observability.metrics import treas_ltv_ratio as ltv_gauge  # type: ignore
+    from treasury_observability.metrics import \
+        treas_ltv_ratio as ltv_gauge  # type: ignore
 except Exception:  # pragma: no cover
+
     class _NoopGauge:
-        def labels(self, *_, **__): return self
-        def set(self, *_, **__): ...
+        def labels(self, *_, **__):
+            return self
+
+        def set(self, *_, **__):
+            ...
+
     ltv_gauge = _NoopGauge()  # type: ignore
 
 app = FastAPI()
@@ -61,4 +68,3 @@ def investable_cash(bank_id: str, session: Session = Depends(get_session)):
         pass
 
     return {"cash": cash}
-
