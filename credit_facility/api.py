@@ -315,6 +315,13 @@ def create_app() -> FastAPI:  # pragma: no cover
     async def healthz():
         return {"ok": True}
 
+    # ensure tables exist on boot (safe idempotent)
+    @app.on_event("startup")
+    def _startup_init_db() -> None:  # pragma: no cover
+        from asset_aggregator.db import SQLModel, engine  # lazy import to avoid cycles
+
+        SQLModel.metadata.create_all(engine)
+
     return app
 
 

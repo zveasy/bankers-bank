@@ -1,5 +1,7 @@
-import pytest
 import os
+
+import pytest
+
 from sdk.python.bankersbank.client import BankersBankClient
 from tests.test_helpers import REQUESTS_AVAILABLE
 
@@ -7,18 +9,22 @@ pytestmark = pytest.mark.skipif(not REQUESTS_AVAILABLE, reason="requests not ins
 if REQUESTS_AVAILABLE:
     import requests
 
+
 def reset_collateral(base_url):
     # Reset the in-memory collateral registry for test isolation
     resp = requests.post(f"{base_url}/collateral/reset")
     assert resp.status_code == 200
 
-def setup_collateral_and_account(client, account_id, address="123 Main St", valuation=100000):
+
+def setup_collateral_and_account(
+    client, account_id, address="123 Main St", valuation=100000
+):
     # Add collateral
     collateral_data = {
         "address": address,
         "valuation": valuation,
         "owner": "Alice",
-        "title_status": "clear"
+        "title_status": "clear",
     }
     client.add_collateral(collateral_data)
     # No need to create account, just ensure balance exists in mock

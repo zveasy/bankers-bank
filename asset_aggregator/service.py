@@ -8,16 +8,14 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Optional, Tuple
 
 import httpx
-from treasury_observability.metrics import (
-    treas_ltv_ratio,
-    snapshot_success_total,
-    snapshot_failure_total,
-    recon_anomalies_total,
-)
 from sqlmodel import Session
 
+from treasury_observability.metrics import (recon_anomalies_total,
+                                            snapshot_failure_total,
+                                            snapshot_success_total,
+                                            treas_ltv_ratio)
 
-from .db import AssetSnapshot, engine, upsert_assetsnapshot, LTVHistory
+from .db import AssetSnapshot, LTVHistory, engine, upsert_assetsnapshot
 
 BALANCES_URL = os.getenv("BALANCES_URL", "http://localhost:9000/balances")
 COLLATERAL_URL = os.getenv("COLLATERAL_URL", "http://localhost:9000/collateral")
@@ -70,14 +68,19 @@ async def publish_snapshot(snapshot: AssetSnapshot) -> None:
                 "undrawnCreditUSD": snapshot.undrawnCreditUSD,
             }
         ).encode()
-        await producer.send_and_wait(KAFKA_TOPIC, value=payload, key=snapshot.bank_id.encode())
+        await producer.send_and_wait(
+            KAFKA_TOPIC, value=payload, key=snapshot.bank_id.encode()
+        )
     finally:
         await producer.stop()
 
 
 # ------------------ Sprint 6 helpers ------------------
 
-def compute_ltv(eligible_collateral_usd: Optional[float], total_balances_usd: Optional[float]) -> Optional[float]:
+
+def compute_ltv(
+    eligible_collateral_usd: Optional[float], total_balances_usd: Optional[float]
+) -> Optional[float]:
     if not eligible_collateral_usd or not total_balances_usd or total_balances_usd <= 0:
         return None
     return float(eligible_collateral_usd) / float(total_balances_usd)
@@ -108,7 +111,9 @@ def write_snapshot_idempotent(
     return ltv
 
 
-def reconcile_snapshot(prev: Dict[str, Any] | None, curr: Dict[str, Any], bank_id: str) -> None:
+def reconcile_snapshot(
+    prev: Dict[str, Any] | None, curr: Dict[str, Any], bank_id: str
+) -> None:
     """Simple delta guard emitting recon_anomalies_total."""
     if not prev:
         return
@@ -122,10 +127,13 @@ def reconcile_snapshot(prev: Dict[str, Any] | None, curr: Dict[str, Any], bank_i
         if delta > delta_max_pct:
             recon_anomalies_total.labels(bank_id=bank_id, type=f"{key}_delta").inc()
 
+
 # ------------------------------------------------------
 
 
-async def snapshot_bank_assets(bank_id: str, session: Session | None = None) -> AssetSnapshot:
+async def snapshot_bank_assets(
+    bank_id: str, session: Session | None = None
+) -> AssetSnapshot:
     """Pull data, persist snapshot, and publish to Kafka."""
     bal_task = balances_puller(bank_id)
     col_task = collateral_puller(bank_id)
@@ -139,7 +147,7 @@ async def snapshot_bank_assets(bank_id: str, session: Session | None = None) -> 
         undrawnCreditUSD=float(balances.get("undrawnCreditUSD", 0.0)),
     )
 
-    with (session or Session(engine)) as s:
+    with session or Session(engine) as s:
         s.add(snapshot)
         s.commit()
         s.refresh(snapshot)

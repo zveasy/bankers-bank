@@ -1,7 +1,12 @@
-import os, time, requests, sys
+import os
+import sys
+import time
+
+import requests
 
 BANK = os.getenv("BANK_CONNECTOR_URL", "http://localhost:8003")
 AGGR = os.getenv("ASSET_AGGREGATOR_URL", "http://localhost:9000")
+
 
 def wait_ready(url, tries=60, delay=2.0):
     for _ in range(tries):
@@ -14,6 +19,7 @@ def wait_ready(url, tries=60, delay=2.0):
         time.sleep(delay)
     print(f"[SMOKE] Service not ready: {url}", file=sys.stderr)
     sys.exit(1)
+
 
 def main():
     # wait for health endpoints
@@ -39,11 +45,14 @@ def main():
 
     # metrics present
     m_bank = requests.get(f"{BANK}/metrics", timeout=5).text
-    assert ("sweep_latency_seconds" in m_bank), "expected bank_connector metric missing"
+    assert "sweep_latency_seconds" in m_bank, "expected bank_connector metric missing"
     m_aggr = requests.get(f"{AGGR}/metrics", timeout=5).text
-    assert ("treas_ltv_ratio" in m_aggr) or ("snapshot_latency_seconds" in m_aggr), "expected asset_aggregator metrics missing"
+    assert ("treas_ltv_ratio" in m_aggr) or (
+        "snapshot_latency_seconds" in m_aggr
+    ), "expected asset_aggregator metrics missing"
 
     print("SMOKE: OK")
+
 
 if __name__ == "__main__":
     main()

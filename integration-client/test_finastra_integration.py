@@ -1,9 +1,10 @@
-
-import requests
+import json
 import sys
 from pathlib import Path
+
 import pytest
-import json
+import requests
+
 from tests.test_helpers import JSONSCHEMA_AVAILABLE, REQUESTS_AVAILABLE
 
 if JSONSCHEMA_AVAILABLE:
@@ -14,7 +15,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "sdk/python"))
 pytestmark = pytest.mark.skipif(not REQUESTS_AVAILABLE, reason="requests not installed")
 
 from bankersbank.finastra import FinastraAPIClient
-
 
 
 def load_balances_schema():
@@ -31,17 +31,18 @@ def load_balances_schema():
                         "amount": {"type": "number"},
                         "currency": {"type": "string"},
                     },
-                    "required": ["type", "amount", "currency"]
+                    "required": ["type", "amount", "currency"],
                 },
             },
             "_meta": {"type": "object"},
         },
-        "required": ["items", "_meta"]
+        "required": ["items", "_meta"],
     }
 
 
 # --- /balances endpoint: happy-path, negative, edge, schema tests ---
 import itertools
+
 
 @pytest.mark.enable_socket
 @pytest.mark.skipif(not REQUESTS_AVAILABLE, reason="requests not installed")
@@ -56,7 +57,7 @@ import itertools
         ("456783434", "", {}, 401, "empty token"),
         ("456783434", "Bearer bad", {}, 401, "invalid token format"),
         ("456783434", "Bearer dummy", {"error": "500"}, 500, "simulate server error"),
-    ]
+    ],
 )
 def test_balances_all_cases(account_id, token, query_params, expected_status, desc):
     """
@@ -119,8 +120,6 @@ def test_balances_schema_regression():
     jsonschema.validate(instance=data, schema=schema)
 
 
-
-
 @pytest.mark.skipif(not REQUESTS_AVAILABLE, reason="requests not installed")
 def test_accounts_and_collateral_flow():
     client = FinastraAPIClient(token="dummy", base_url="http://127.0.0.1:8000")
@@ -132,19 +131,23 @@ def test_accounts_and_collateral_flow():
         "address": "123 Main St",
         "valuation": 100000,
         "owner": "Test Owner",
-
-# --- get_account_info endpoint tests ---
-
-        "title_status": "Clean"
+        # --- get_account_info endpoint tests ---
+        "title_status": "Clean",
     }
     if not hasattr(client, "add_collateral"):
+
         def add_collateral(collateral_data):
-            return requests.post(f"{client.base_url}/collateral", json=collateral_data).json()
+            return requests.post(
+                f"{client.base_url}/collateral", json=collateral_data
+            ).json()
+
         client.add_collateral = add_collateral
     client.add_collateral(collateral_data)
+
     # Patch collaterals_for_account to return all collateral
     def collaterals_for_account(_):
         return requests.get(f"{client.base_url}/collateral").json()
+
     client.collaterals_for_account = collaterals_for_account
     all_collateral = requests.get(f"{client.base_url}/collateral").json()
     assert any(item["address"] == "123 Main St" for item in all_collateral["items"])
