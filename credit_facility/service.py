@@ -69,7 +69,12 @@ class CreditFacilityService:
         )
         snapshot: AssetSnapshot | None = self.session.exec(snap_stmt).first()
         if snapshot is None:
-            return 0.0  # no data yet
+            # no asset snapshots yet – fall back to policy cap minus outstanding
+            outstanding = self._outstanding(bank_id)
+            available = max(cap - outstanding - buffer, 0.0)
+            credit_capacity_available.labels(bank_id=bank_id).set(available)
+            credit_outstanding_total.labels(bank_id=bank_id).set(outstanding)
+            return available
 
         eligible = snapshot.eligibleCollateralUSD or 0.0
         ltv = self._latest_ltv(bank_id)
