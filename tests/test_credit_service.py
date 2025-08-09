@@ -2,11 +2,12 @@ import asyncio
 from unittest.mock import AsyncMock
 
 import httpx
-from sqlmodel import SQLModel, create_engine, Session, select
-
-from treasury_orchestrator.credit_db import CreditFacility, CreditTxn
-from treasury_orchestrator.credit import CreditFacilityService, JpmLiquidityClient
 from bankersbank.finastra import FinastraAPIClient
+from sqlmodel import Session, SQLModel, create_engine, select
+
+from treasury_orchestrator.credit import (CreditFacilityService,
+                                          JpmLiquidityClient)
+from treasury_orchestrator.credit_db import CreditFacility, CreditTxn
 
 
 def setup_session() -> Session:
@@ -22,7 +23,9 @@ def test_refresh_capacity(monkeypatch):
     session.commit()
 
     fin = FinastraAPIClient(token="dummy")
-    monkeypatch.setattr(fin, "collaterals_for_account", lambda _: {"items": [{"valuation": 200000}]})
+    monkeypatch.setattr(
+        fin, "collaterals_for_account", lambda _: {"items": [{"valuation": 200000}]}
+    )
     jpm = JpmLiquidityClient("http://jpm", "id", "sec", "http://token")
 
     service = CreditFacilityService(fac, fin, jpm, session)
@@ -37,12 +40,16 @@ def test_draw_creates_txn(monkeypatch):
     session.commit()
 
     fin = FinastraAPIClient(token="dummy")
-    monkeypatch.setattr(fin, "collaterals_for_account", lambda _: {"items": [{"valuation": 50000}]})
+    monkeypatch.setattr(
+        fin, "collaterals_for_account", lambda _: {"items": [{"valuation": 50000}]}
+    )
 
     async def fake_post(url, data=None, json=None, headers=None):
         req = httpx.Request("POST", url)
         if "token" in url:
-            return httpx.Response(status_code=200, json={"access_token": "tok"}, request=req)
+            return httpx.Response(
+                status_code=200, json={"access_token": "tok"}, request=req
+            )
         return httpx.Response(status_code=201, request=req)
 
     monkeypatch.setattr(httpx.AsyncClient, "post", AsyncMock(side_effect=fake_post))
@@ -56,4 +63,3 @@ def test_draw_creates_txn(monkeypatch):
     txns = session.exec(select(CreditTxn)).all()
     assert len(txns) == 1
     assert txns[0].txn_type == "DRAW"
-

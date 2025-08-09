@@ -1,8 +1,9 @@
 import asyncio
 import json
 from datetime import datetime, timezone
-from sqlmodel import Session, SQLModel, create_engine, select
+
 import pytest
+from sqlmodel import Session, SQLModel, create_engine, select
 
 from asset_aggregator import AssetSnapshot
 from asset_aggregator import service as svc
@@ -10,7 +11,9 @@ from asset_aggregator import service as svc
 
 @pytest.fixture
 def session(tmp_path):
-    engine = create_engine(f"sqlite:///{tmp_path}/test.db", connect_args={"check_same_thread": False})
+    engine = create_engine(
+        f"sqlite:///{tmp_path}/test.db", connect_args={"check_same_thread": False}
+    )
     SQLModel.metadata.create_all(engine)
     with Session(engine) as sess:
         yield sess
@@ -30,6 +33,7 @@ async def test_snapshot_bank_assets(monkeypatch, session):
     # Mock publish_snapshot to avoid Kafka dependency
     async def fake_publish_snapshot(snapshot):
         return None
+
     monkeypatch.setattr(svc, "publish_snapshot", fake_publish_snapshot)
     snap = await svc.snapshot_bank_assets("123", session)
     assert isinstance(snap, AssetSnapshot)

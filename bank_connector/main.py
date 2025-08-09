@@ -1,13 +1,16 @@
 import os
 import time
-from fastapi import FastAPI, Response, Depends, Request
+
 import httpx
+from fastapi import Depends, FastAPI, Request, Response
+from prometheus_client import make_asgi_app
 from sqlmodel import Session, select
 
-from .db import SweepOrder, init_db, get_session
-from .models import SweepOrderRequest, PaymentStatusResponse
 from treasury_observability.metrics import sweep_latency_seconds
-from prometheus_client import make_asgi_app
+
+from .db import SweepOrder, get_session, init_db
+from .models import PaymentStatusResponse, SweepOrderRequest
+
 # from .iso20022 import create_pain_001, parse_pain_002
 
 app = FastAPI()
@@ -23,10 +26,10 @@ async def healthz():
     return {"ok": True}
 
 
-
-
 @app.post("/sweep-order")
-async def create_sweep_order(payload: SweepOrderRequest, session: Session = Depends(get_session)):
+async def create_sweep_order(
+    payload: SweepOrderRequest, session: Session = Depends(get_session)
+):
     # xml = create_pain_001(
     #     payload.order_id, payload.amount, payload.currency, payload.debtor, payload.creditor
     # )
@@ -34,7 +37,9 @@ async def create_sweep_order(payload: SweepOrderRequest, session: Session = Depe
     start = time.perf_counter()
     bank_api_url = os.getenv("BANK_API_URL", "http://localhost:8000")
     async with httpx.AsyncClient() as client:
-        await client.post(bank_api_url, data=xml, headers={"Content-Type": "application/xml"})
+        await client.post(
+            bank_api_url, data=xml, headers={"Content-Type": "application/xml"}
+        )
     sweep_latency_seconds.observe(time.perf_counter() - start)
 
     order = SweepOrder(
@@ -52,7 +57,9 @@ async def create_sweep_order(payload: SweepOrderRequest, session: Session = Depe
 
 
 @app.post("/payment-status")
-async def payment_status(request: Request, session: Session = Depends(get_session)) -> PaymentStatusResponse:
+async def payment_status(
+    request: Request, session: Session = Depends(get_session)
+) -> PaymentStatusResponse:
     xml = await request.body()
     # status = parse_pain_002(xml.decode())
     status = "UNKNOWN"  # Stubbed status

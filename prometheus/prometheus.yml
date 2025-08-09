@@ -5,9 +5,18 @@ rule_files:
   - /etc/prometheus/alert_rules/*.yml
 
 scrape_configs:
-  - job_name: 'services'
+  # Sidecar or embedded exporters that expose metrics at '/'
+  - job_name: 'sidecar'
     metrics_path: /
     static_configs:
       - targets:
           - quant_consumer:8001
-          # Add other service targets here as needed
+  # FastAPI apps exposing Prometheus at '/metrics'
+  - job_name: 'fastapi'
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - bank_connector:8080
+          - asset_aggregator:8000
+          - credit_facility:8050
+
