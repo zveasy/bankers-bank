@@ -1,5 +1,6 @@
 import sys
 from decimal import Decimal
+
 from .engine import DecisionEngine
 
 

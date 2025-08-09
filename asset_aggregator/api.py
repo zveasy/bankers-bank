@@ -6,19 +6,21 @@ import time
 from datetime import datetime, timedelta, timezone
 from typing import List
 
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
+from prometheus_client import make_asgi_app
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
-from .db import engine, AssetSnapshot, init_db
-from .service import run_snapshot_once, KAFKA_BOOTSTRAP, reconcile_snapshot
 from treasury_observability.metrics import snapshot_latency_seconds
-from prometheus_client import make_asgi_app
+
+from .db import AssetSnapshot, engine, init_db
+from .service import KAFKA_BOOTSTRAP, reconcile_snapshot, run_snapshot_once
 
 app = FastAPI()
 init_db()
 
 app.mount("/metrics", make_asgi_app())
+
 
 class SnapshotRequest(BaseModel):
     bank_id: str | None = none
@@ -58,7 +60,7 @@ def get_session() -> Session:
 def create_snapshot(payload: SnapshotRequest | None = None, bank_id: str | None = None):
     t0 = time.perf_counter()
     try:
-        bank = (bank_id or (payload.bank_id if payload else None) or "O&L")
+        bank = bank_id or (payload.bank_id if payload else None) or "O&L"
         # fetch previous snapshot for reconciliation
         prev = None
         with Session(engine) as s:
@@ -74,7 +76,11 @@ def create_snapshot(payload: SnapshotRequest | None = None, bank_id: str | None 
                 }
         status, ltv = run_snapshot_once(bank)
         # reconcile with mock current values (replace when wiring in real numbers)
-        reconcile_snapshot(prev, {"eligiblecollateralusd": 1_000_000.0, "totalbalancesusd": 5_000_000.0}, bank)
+        reconcile_snapshot(
+            prev,
+            {"eligiblecollateralusd": 1_000_000.0, "totalbalancesusd": 5_000_000.0},
+            bank,
+        )
         # record latency on success
         snapshot_latency_seconds.observe(time.perf_counter() - t0)
         return {"ok": True, "status": status, "ltv": ltv}
