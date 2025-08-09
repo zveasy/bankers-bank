@@ -144,6 +144,28 @@ services:
       start_period: 30s
     restart: unless-stopped
 
+  credit_facility:
+    build:
+      context: .
+      dockerfile: credit_facility/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ASSET_DB_URL: postgresql://bank:bank@postgres:5432/bank
+    ports:
+      - "8050:8050"
+    command: uvicorn credit_facility.api:create_app --host 0.0.0.0 --port 8050
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - python -c "import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://127.0.0.1:8050/healthz', timeout=5).getcode()==200 else sys.exit(1)"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 25s
+    restart: unless-stopped
+
   quant_consumer:
     build:
       context: .
