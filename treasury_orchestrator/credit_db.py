@@ -42,4 +42,3 @@ def init_db() -> None:
 
 def get_session() -> Session:
     return Session(engine)
-

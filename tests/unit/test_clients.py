@@ -6,6 +6,7 @@ try:
 except Exception:  # pragma: no cover - SDK missing
     ApiClient = Configuration = DefaultApi = None
 
+
 @pytest.mark.skipif(ApiClient is None, reason="openapi_client package missing")
 def test_client_imports():
     cfg = Configuration(host="http://localhost:9999")

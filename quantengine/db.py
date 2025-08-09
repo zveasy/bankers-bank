@@ -1,11 +1,11 @@
 # quantengine/db.py
 import os
 from pathlib import Path
-from typing import Optional, Generator
+from typing import Generator, Optional
 
-from sqlmodel import SQLModel, Field, Session, select
 from sqlalchemy import create_engine
 from sqlalchemy.engine.url import make_url
+from sqlmodel import Field, Session, SQLModel, select
 
 # Determine writable directory for database files.
 db_dir = os.getenv("QUANT_DB_DIR", ".data")
