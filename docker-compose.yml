@@ -132,6 +132,7 @@ services:
     environment:
       REDIS_URL: redis://redis:6379/0
       QUANT_DB_URL: sqlite:////data/quant.db
+      QUANT_DRY_RUN: "1"
     volumes:
       - quantdata:/data
     ports: ["9100:8000"]

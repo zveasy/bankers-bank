@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 ########################
-# Builder (with Poetry)
+# Builder (Poetry only)
 ########################
 FROM python:3.11-slim-bookworm AS builder
 
@@ -18,13 +18,12 @@ RUN pip install --no-cache-dir "poetry==$POETRY_VERSION"
 
 WORKDIR /app
 COPY pyproject.toml ./
-# Recompute lock inside build for reproducibility
-RUN poetry lock --no-interaction --no-ansi
-# Export only runtime deps to requirements.txt
-RUN poetry export --only main -f requirements.txt -o requirements.txt
+# No poetry.lock copied – generate lock & export runtime deps only
+RUN poetry lock --no-interaction --no-ansi \
+ && poetry export --only main -f requirements.txt -o requirements.txt
 
 ########################
-# Runtime (slim)
+# Runtime
 ########################
 FROM python:3.11-slim-bookworm AS runtime
 
@@ -33,20 +32,22 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Install runtime deps
-COPY --from=builder /app/requirements.txt .
+COPY --from=builder /app/requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-# App code
+# App source
 COPY . .
 
-# Non-root + writable SQLite dir
-RUN useradd -m app \
- && mkdir -p /data \
- && chown -R app:app /app /data
+# Ensure directory for SQLite database volume is writable
+RUN mkdir -p /data && chown -R app:app /data
+
+# Non-root user for security
+RUN useradd -m app && chown -R app:app /app
 USER app
 
-EXPOSE 8001
-HEALTHCHECK --interval=15s --timeout=3s --retries=5 CMD wget -qO- http://localhost:8001/ || exit 1
-# Entrypoint runs the consumer script that starts the metrics server on 8001
-# (If you start via python -m or similar, keep that here.)
+EXPOSE 8000
+
+# Healthcheck probes /healthz
+HEALTHCHECK --interval=10s --timeout=5s --start-period=25s --retries=12 CMD python -c "import sys, urllib.request, urllib.error;\n\ntry:\n    with urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=5) as r:\n        sys.exit(0 if r.getcode() == 200 else 1)\nexcept Exception:\n    sys.exit(1)"
+
+CMD ["uvicorn", "quantengine.main:app", "--host", "0.0.0.0", "--port", "8000"]

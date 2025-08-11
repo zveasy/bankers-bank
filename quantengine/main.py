@@ -24,6 +24,15 @@ except Exception:  # pragma: no cover
     ltv_gauge = _NoopGauge()  # type: ignore
 
 app = FastAPI()
+
+# Include Liquidity API router (adds endpoints, no duplicate /metrics)
+try:
+    from quantengine.liquidity.api import router as liquidity_router  # type: ignore
+
+    app.include_router(liquidity_router)
+except Exception:
+    # Module may not be present in some deployments; safe to ignore
+    pass
 init_db()
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
