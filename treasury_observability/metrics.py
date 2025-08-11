@@ -224,3 +224,33 @@ rails_dlq_depth = get_metric(
     "In-process DLQ depth",
 )
 
+# --- Sprint 9 metrics ---
+policy_violations_total = get_metric(
+    Counter,
+    "policy_violations_total",
+    "Liquidity policy violations",
+    ["bank_id", "rule"],
+)
+
+liquidity_buffer_usd = get_metric(
+    Gauge,
+    "liquidity_buffer_usd",
+    "Required liquidity buffer in USD",
+    ["bank_id"],
+)
+
+quant_publish_total = get_metric(
+    Counter,
+    "quant_publish_total",
+    "Publishing events to Quant bridge",
+    ["result"],
+)
+
+quant_publish_latency_seconds = get_metric(
+    Histogram,
+    "quant_publish_latency_seconds",
+    "Latency of Quant bridge publish (seconds)",
+    ["path"],
+    buckets=(0.05, 0.1, 0.25, 0.5, 1, 2, 5),
+)
+
