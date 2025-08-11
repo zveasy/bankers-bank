@@ -15,6 +15,19 @@ def pytest_configure(config):
 
 
 # ---------------------------------------------------------------------------
+# Fake Redis for offline unit tests
+# ---------------------------------------------------------------------------
+
+try:
+    import fakeredis  # type: ignore
+    from quantengine import main as _qmain
+
+    _qmain.redis_client = fakeredis.FakeRedis()
+except Exception:
+    # If fakeredis not installed or quantengine absent, ignore – tests will skip
+    pass
+
+# ---------------------------------------------------------------------------
 # Automatically skip external integration tests unless opt-in
 # ---------------------------------------------------------------------------
 

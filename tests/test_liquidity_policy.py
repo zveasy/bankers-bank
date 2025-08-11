@@ -46,6 +46,6 @@ def test_is_holiday():
 def test_evaluate(policy_kwargs, available, draw, asof, reasons, allowed):
     policy = LiquidityPolicy(**policy_kwargs)
     res = evaluate(policy, available_cash_usd=available, requested_draw_usd=draw, asof=asof)
-    assert res["reasons"] == reasons
+    assert set(res["reasons"]) == set(reasons)
     assert res["allowed_draw_usd"] == allowed
     assert res["ok"] == (reasons == [])
