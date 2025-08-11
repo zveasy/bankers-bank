@@ -1,0 +1,7 @@
+<Document xmlns="urn:iso:std:iso20022:tech:xsd:pain.002.001.03">
+  <CstmrPmtStsRpt>
+    <OrgnlGrpInfAndSts>
+      <GrpSts>RJCT</GrpSts>
+    </OrgnlGrpInfAndSts>
+  </CstmrPmtStsRpt>
+</Document>
