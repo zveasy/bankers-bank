@@ -14,7 +14,9 @@ RUN pip install --no-cache-dir "poetry==${POETRY_VERSION}"
 
 WORKDIR /app
 
-COPY pyproject.toml poetry.lock ./
+COPY pyproject.toml ./
+# Recompute lock inside build for reproducibility
+RUN poetry lock --no-interaction --no-ansi
 RUN poetry export --only main -f requirements.txt -o requirements.txt
 
 # ---------------------------------------------------------------------------
