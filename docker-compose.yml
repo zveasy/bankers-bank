@@ -82,7 +82,7 @@ services:
       BANK_API_URL: http://mock_bank:8080/post
       BANK_RAILS_ENABLED: "1"
       BANK_RAILS_URL: http://mock_bank:8080/post
-    ports: ["8003:8080"]
+    ports: ["8080:8080"]
     command: uvicorn bank_connector.main:app --host 0.0.0.0 --port 8080
     healthcheck:
       test:
