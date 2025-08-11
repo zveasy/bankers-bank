@@ -162,7 +162,7 @@ jobs:
         run: |
           python - <<'PY'
           import time, urllib.request, sys
-          def wait(url, path="/healthz", tries=90, delay=1.0):
+          def wait(url, path="/healthz", tries=180, delay=1.0):
               for _ in range(tries):
                   try:
                       with urllib.request.urlopen(url+path, timeout=2) as r:
@@ -226,7 +226,7 @@ jobs:
         run: |
           python - <<'PY'
           import time, urllib.request, sys
-          def wait(url, path="/healthz", tries=90, delay=1.0):
+          def wait(url, path="/healthz", tries=180, delay=1.0):
               for _ in range(tries):
                   try:
                       with urllib.request.urlopen(url+path, timeout=2) as r:
@@ -247,10 +247,11 @@ jobs:
           python-version: '3.11'
 
       - name: Install smoke deps
-        run: python -m pip install --upgrade pip httpx fastapi
+        run: python -m pip install --upgrade pip httpx fastapi prometheus-client sqlmodel
 
       - name: Run payments smoke
         env:
+          PYTHONPATH: ${{ github.workspace }}
           BANK_API_URL: http://127.0.0.1:8080/post
         run: python scripts/smoke_payments.py
 
