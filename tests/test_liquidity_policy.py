@@ -40,7 +40,7 @@ def test_is_holiday():
         # Holiday violation
         ({"settlement_calendar": {"2025-12-25"}}, 1_000_000, 100_000, _dt.date(2025, 12, 25), ["holiday"], 0),
         # Combined reasons
-        ({"min_cash_bps": 500, "max_draw_bps": 1000, "settlement_calendar": {"2025-12-25"}}, 1_000_000, 200_000, _dt.date(2025, 12, 25), ["holiday", "min_buffer", "max_draw_cap"], 0),
+        ({"min_cash_bps": 500, "max_draw_bps": 1000, "settlement_calendar": {"2025-12-25"}}, 1_000_000, 200_000, _dt.date(2025, 12, 25), ["holiday", "max_draw_cap"], 0),
     ],
 )
 def test_evaluate(policy_kwargs, available, draw, asof, reasons, allowed):
