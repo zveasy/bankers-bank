@@ -35,7 +35,7 @@ app.mount("/metrics", make_asgi_app())
 # ---------------------------------------------------------------------------
 
 def _env_bool(name: str, default: str = "0") -> bool:
-    return os.getenv(name, default).lower() in {"1", "true", "yes", "on"}
+    return os.getenv(name, default).lower() in {"1", "true", "yes", "on", "y"}
 
 
 # These are read at runtime so tests can monkeypatch env per request
@@ -150,15 +150,27 @@ async def create_sweep_order(
     session.refresh(order)
 
     # build XML
+    exec_ts = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+    class _Clock:
+        @staticmethod
+        def now_iso() -> str:  # noqa: D401
+            return exec_ts
+
+    class _UuidF:
+        @staticmethod
+        def new() -> str:  # noqa: D401
+            return str(uuid.uuid4())
+
     xml_str = build_pain001(
         order_id=payload.order_id,
         amount=payload.amount,
         currency=payload.currency,
         debtor=payload.debtor,
         creditor=payload.creditor,
-        execution_ts=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        clock=lambda: None,  # unused by builder overload
-        uuidf=lambda: None,  # type: ignore[arg-type]
+        execution_ts=exec_ts,
+        clock=_Clock(),
+        uuidf=_UuidF(),
     )
     xml_bytes = xml_str.encode()
 
@@ -207,15 +219,22 @@ async def payment_status(
     session: Session = Depends(get_session),
 ):
     xml_bytes = await request.body()
-    status = parse_pain002(xml_bytes.decode("utf-8"))
+    raw_status = parse_pain002(xml_bytes.decode("utf-8"))  # PaymentStatus enum or raw
+    # Map ISO status to internal literal
+    iso_map = {
+        "ACSC": "SETTLED",
+        "ACTC": "ACCEPTED",
+        "RJCT": "REJECTED",
+    }
+    internal = iso_map.get(raw_status.value if hasattr(raw_status, "value") else str(raw_status), "UNKNOWN")
     order_id = request.headers.get("X-Order-ID")
     if order_id:
         row: SweepOrder | None = session.exec(select(SweepOrder).where(SweepOrder.order_id == order_id)).first()
         if row:
-            row.status = status.value
+            row.status = internal
             session.add(row)
             session.commit()
-    return PaymentStatusResponse(status=status.value)
+    return PaymentStatusResponse(status=internal)
 
 
 @app.get("/healthz")
