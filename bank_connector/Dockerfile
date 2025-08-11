@@ -9,7 +9,9 @@ ENV PATH="${POETRY_HOME}/bin:${PATH}"
 RUN pip install --no-cache-dir "poetry==$POETRY_VERSION"
 
 WORKDIR /app
-COPY pyproject.toml poetry.lock ./
+COPY pyproject.toml ./
+# Recompute lock inside build for reproducibility
+RUN poetry lock --no-interaction --no-ansi
 # Recompute the lock inside the build so export is consistent with pyproject
 RUN poetry lock --no-interaction --no-ansi
 RUN poetry export -f requirements.txt --output /tmp/requirements.txt --without-hashes
