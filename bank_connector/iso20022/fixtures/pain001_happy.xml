@@ -1,0 +1,28 @@
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:pain.001.001.03">
+  <CstmrCdtTrfInitn>
+    <GrpHdr>
+      <MsgId>00000000-0000-0000-0000-000000000001</MsgId>
+      <CreDtTm>2025-08-06T10:37:01Z</CreDtTm>
+      <NbOfTxs>1</NbOfTxs>
+    </GrpHdr>
+    <PmtInf>
+      <PmtInfId>00000000-0000-0000-0000-000000000002</PmtInfId>
+      <PmtMtd>TRF</PmtMtd>
+      <ReqdExctnDt>2025-08-06</ReqdExctnDt>
+      <Dbtr>
+        <Nm>ACCT-1</Nm>
+      </Dbtr>
+      <CdtTrfTxInf>
+        <PmtId>
+          <EndToEndId>ORD-123</EndToEndId>
+        </PmtId>
+        <Amt>
+          <InstdAmt Ccy="USD">100000.00</InstdAmt>
+        </Amt>
+        <Cdtr>
+          <Nm>MMF-ABC</Nm>
+        </Cdtr>
+      </CdtTrfTxInf>
+    </PmtInf>
+  </CstmrCdtTrfInitn>
+</Document>
