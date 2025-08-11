@@ -251,6 +251,7 @@ jobs:
 
       - name: Run payments smoke
         env:
+          PYTHONPATH: ${{ github.workspace }}
           BANK_API_URL: http://127.0.0.1:8080/post
         run: python scripts/smoke_payments.py
 
