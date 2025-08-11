@@ -247,7 +247,7 @@ jobs:
           python-version: '3.11'
 
       - name: Install smoke deps
-        run: python -m pip install --upgrade pip httpx fastapi
+        run: python -m pip install --upgrade pip httpx fastapi prometheus-client
 
       - name: Run payments smoke
         env:
