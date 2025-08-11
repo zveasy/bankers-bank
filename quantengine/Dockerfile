@@ -38,11 +38,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 # App source
 COPY . .
 
-# Ensure directory for SQLite database volume is writable
-RUN mkdir -p /data && chown -R app:app /data
-
-# Non-root user for security
-RUN useradd -m app && chown -R app:app /app
+# Non-root user for security and ensure writable volume directory
+RUN useradd -m app \
+    && mkdir -p /data \
+    && chown -R app:app /app /data
 USER app
 
 EXPOSE 8000
