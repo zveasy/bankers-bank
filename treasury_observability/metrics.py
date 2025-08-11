@@ -201,3 +201,26 @@ credit_provider_latency_seconds = get_metric(
     ["action", "provider"],
     buckets=(0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10),
 )
+
+# --- Sprint 8 PR-2: bank rails metrics ---
+rails_post_total = get_metric(
+    Counter,
+    "rails_post_total",
+    "Bank rails POST attempts",
+    ["result", "http_status", "endpoint", "bank_id"],
+)
+
+rails_end_to_end_seconds = get_metric(
+    Histogram,
+    "rails_end_to_end_seconds",
+    "End-to-end latency of sweep order (seconds)",
+    ["endpoint", "bank_id"],
+    buckets=(0.05, 0.1, 0.25, 0.5, 1, 2, 5),
+)
+
+rails_dlq_depth = get_metric(
+    Gauge,
+    "rails_dlq_depth",
+    "In-process DLQ depth",
+)
+
