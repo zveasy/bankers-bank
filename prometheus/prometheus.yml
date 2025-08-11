@@ -19,4 +19,10 @@ scrape_configs:
           - bank_connector:8080
           - asset_aggregator:8000
           - credit_facility:8050
+  # Quantengine FastAPI
+  - job_name: 'quantengine'
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - quantengine:8000
 
