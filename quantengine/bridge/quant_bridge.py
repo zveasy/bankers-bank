@@ -6,16 +6,19 @@ unit-tests can inject a fake implementation.
 from __future__ import annotations
 
 import json
+import os
 import time
 from datetime import datetime, timezone
 from typing import Callable, Dict, Protocol
 
 try:
     # Only import metrics when available; fall back to no-ops in unit tests.
-    from treasury_observability.metrics import (
-        quant_publish_latency_seconds as _latency_hist,
-        quant_publish_total as _publish_counter,
-    )
+    from treasury_observability.metrics import \
+        quant_circuit_open as _circuit_gauge
+    from treasury_observability.metrics import \
+        quant_publish_latency_seconds as _latency_hist
+    from treasury_observability.metrics import \
+        quant_publish_total as _publish_counter
 except Exception:  # pragma: no cover
 
     class _NoopMetric:  # pylint: disable=too-few-public-methods
@@ -35,16 +38,19 @@ except Exception:  # pragma: no cover
 class Transport(Protocol):
     """Callable transport signature."""
 
-    def __call__(self, topic: str, key: bytes, value: bytes) -> None: ...
+    def __call__(self, topic: str, key: bytes, value: bytes) -> None:
+        ...
 
 
 # Default no-op transport ----------------------------------------------------
+
 
 def _noop_transport(topic: str, key: bytes, value: bytes) -> None:  # noqa: D401
     """Do nothing (dry-run)."""
 
 
 # Main publish API -----------------------------------------------------------
+
 
 def publish_cash_position(
     payload: Dict[str, object],
@@ -59,6 +65,17 @@ def publish_cash_position(
     The key is deterministic: ``"{bank_id}|{asof_ts}"``.
     Latency + result counters are recorded via Prometheus.
     """
+    # Circuit breaker check
+    circuit_open = os.getenv("QUANT_CIRCUIT_OPEN", "0").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+    }
+    try:
+        _circuit_gauge.set(1 if circuit_open else 0)
+    except Exception:
+        pass
+
     start_ts = time.perf_counter()
 
     bank_id = str(payload.get("bank_id", ""))
@@ -67,6 +84,10 @@ def publish_cash_position(
 
     result = "success"
     try:
+        if circuit_open:
+            _publish_counter.labels(result="skipped").inc()
+            return {"ok": True, "skipped": True, "key": key}
+
         if dry_run:
             # simulate
             _publish_counter.labels(result=result).inc()

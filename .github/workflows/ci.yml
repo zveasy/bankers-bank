@@ -277,11 +277,14 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build images
+      - name: Build quantengine
         run: docker compose build quantengine
 
-      - name: Start stack (redis + redpanda + quantengine)
-        run: docker compose up -d redis redpanda quantengine
+      - name: Start quantengine only
+        env:
+          QUANT_DRY_RUN: "1"
+          QUANT_CIRCUIT_OPEN: "0"
+        run: docker compose up -d quantengine
 
       - name: Wait for health
         run: |
@@ -290,7 +293,7 @@ jobs:
           def wait(url, tries=180, delay=1.0):
               for _ in range(tries):
                   try:
-                      with urllib.request.urlopen(url+'/healthz', timeout=2) as r:
+                      with urllib.request.urlopen(url+'/readyz', timeout=2) as r:
                           if r.status == 200:
                               print('service healthy')
                               sys.exit(0)
@@ -299,7 +302,7 @@ jobs:
                   time.sleep(delay)
               print('Timed out waiting for service', file=sys.stderr)
               sys.exit(1)
-          wait('http://127.0.0.1:9100')
+          wait('http://127.0.0.1:8000')
           PY
 
       - name: Set up Python for smoke
@@ -312,7 +315,7 @@ jobs:
 
       - name: Run liquidity smoke
         env:
-          LIQ_URL: http://127.0.0.1:9100
+          QUANT_URL: http://127.0.0.1:8000
         run: python scripts/smoke_liquidity.py
 
       - name: Dump logs on failure

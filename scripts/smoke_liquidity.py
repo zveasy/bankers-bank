@@ -12,14 +12,14 @@ from typing import Final
 
 import requests
 
-BASE: Final[str] = os.getenv("LIQ_URL", "http://127.0.0.1:9100")
+BASE: Final[str] = os.getenv("QUANT_URL", "http://127.0.0.1:8000")
 TIMEOUT: Final[int] = 5
 
 
 def _wait(url: str, tries: int = 90, delay: float = 1.0) -> None:
     for _ in range(tries):
         try:
-            if requests.get(f"{url}/healthz", timeout=TIMEOUT).ok:
+            if requests.get(f"{url}/readyz", timeout=TIMEOUT).ok:
                 return
         except requests.RequestException:
             pass
@@ -36,7 +36,11 @@ def main() -> None:
         "bank_id": "smoke_bank",
         "available_cash_usd": 50_000.0,
         "asof_ts": "2025-08-06T11:00:00Z",
-        "policy": {"min_cash_bps": 100, "max_draw_bps": 5000, "settlement_calendar": []},
+        "policy": {
+            "min_cash_bps": 100,
+            "max_draw_bps": 5000,
+            "settlement_calendar": [],
+        },
     }
     r = requests.post(f"{BASE}/liquidity/evaluate", json=eval_body, timeout=TIMEOUT)
     r.raise_for_status()
