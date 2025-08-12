@@ -1,4 +1,5 @@
 import os
+
 import pytest
 
 
@@ -20,6 +21,7 @@ def pytest_configure(config):
 
 try:
     import fakeredis  # type: ignore
+
     from quantengine import main as _qmain
 
     _qmain.redis_client = fakeredis.FakeRedis()
@@ -31,12 +33,15 @@ except Exception:
 # Automatically skip external integration tests unless opt-in
 # ---------------------------------------------------------------------------
 
+
 def pytest_collection_modifyitems(config, items):
     """Skip tests that require a running HTTP server unless opt-in via env."""
     if os.getenv("BANKERSBANK_INTEGRATION") == "1":
         return  # run normally
 
-    skip_marker = pytest.mark.skip(reason="external integration tests disabled (set BANKERSBANK_INTEGRATION=1 to run)")
+    skip_marker = pytest.mark.skip(
+        reason="external integration tests disabled (set BANKERSBANK_INTEGRATION=1 to run)"
+    )
     for item in items:
         path_str = str(item.fspath)
         if "integration-client" in path_str or "integration_client" in path_str:

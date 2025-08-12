@@ -27,7 +27,8 @@ app = FastAPI()
 
 # Include Liquidity API router (adds endpoints, no duplicate /metrics)
 try:
-    from quantengine.liquidity.api import router as liquidity_router  # type: ignore
+    from quantengine.liquidity.api import \
+        router as liquidity_router  # type: ignore
 
     app.include_router(liquidity_router)
 except Exception:
@@ -50,6 +51,20 @@ def healthz():
         return {"ok": True}
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"redis:{exc}")
+
+
+@app.get("/readyz")
+def readyz():
+    """Readiness probe: ensure DB writable by acquiring write lock."""
+    from .db import engine  # local import to avoid circular
+
+    try:
+        with engine.connect() as conn:
+            conn.exec_driver_sql("BEGIN IMMEDIATE;")
+            conn.exec_driver_sql("ROLLBACK;")
+        return {"ok": True}
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"db:{exc}")
 
 
 @app.get("/investable-cash")

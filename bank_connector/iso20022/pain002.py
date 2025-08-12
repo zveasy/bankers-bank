@@ -35,6 +35,10 @@ def parse_pain002(xml_text: str) -> PaymentStatus:
         return PaymentStatus.UNKNOWN
 
     code = _find_status(root)
-    if code in (PaymentStatus.ACCP.value, PaymentStatus.ACSC.value, PaymentStatus.RJCT.value):
+    if code in (
+        PaymentStatus.ACCP.value,
+        PaymentStatus.ACSC.value,
+        PaymentStatus.RJCT.value,
+    ):
         return PaymentStatus(code)  # type: ignore[arg-type]
     return PaymentStatus.UNKNOWN
