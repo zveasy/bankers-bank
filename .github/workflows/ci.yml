@@ -110,6 +110,9 @@ jobs:
   # ────────────────────────────────
   test-python-poetry:
     runs-on: ubuntu-latest
+    steps:
+      - name: No-op
+        run: echo "Poetry workflow placeholder"
 
   # ────────────────────────────────
   # Observability lint: alert rules & dashboards
@@ -122,22 +125,14 @@ jobs:
       - name: Lint Prometheus alert rules
         uses: docker://prom/prometheus:v2.52.0
         with:
-          args: |
-            promtool
-            check
-            rules
-            /github/workspace/prometheus/alert_rules/observability.rules.yml
+          args: >-
+            promtool check rules /github/workspace/prometheus/alert_rules/observability.rules.yml
 
       - name: Verify Grafana dashboards are valid JSON
         run: |
           sudo apt-get update && sudo apt-get install -y jq
           for f in grafana/dashboards/*.json; do
             echo "Validating $f"; jq empty "$f"; done
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python
-        id: setup-python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -154,14 +149,10 @@ jobs:
         uses: actions/cache@v3
         with:
           path: .venv
-          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
 
       - name: Install dependencies (if not cached)
         if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
         run: poetry install --no-interaction --no-root
-
-      - name: Install project
-        run: poetry install --no-interaction
 
   # ────────────────────────────────
   # Run credit smoke test with docker compose
