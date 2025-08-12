@@ -56,9 +56,19 @@ def configure_logging(fmt: str | None = None, *, service_name: str | None = None
     root.addHandler(handler)
 
     if service_name:
-        # Replace getLogger to always attach service extra context
-        def _get_logger(name: Optional[str] = None) -> logging.LoggerAdapter:  # type: ignore
-            base_logger = logging.getLogger(name) if name else root
-            return logging.LoggerAdapter(base_logger, extra={"service": service_name})
+        # Preserve original getLogger so we don't recurse after monkey-patch
+        # Store original getLogger only once to avoid chaining patches
+        if not hasattr(logging, "_orig_get_logger"):
+            logging._orig_get_logger = logging.getLogger  # type: ignore
+        _orig_get_logger = logging._orig_get_logger  # type: ignore
+
+        class ServiceLoggerAdapter(logging.LoggerAdapter):
+            @property
+            def level(self):  # type: ignore
+                return self.logger.level
+
+        def _get_logger(name: Optional[str] = None) -> ServiceLoggerAdapter:  # type: ignore
+            base_logger = _orig_get_logger(name) if name else root
+            return ServiceLoggerAdapter(base_logger, extra={"service": service_name})
 
         logging.getLogger = _get_logger  # type: ignore
