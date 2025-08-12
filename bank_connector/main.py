@@ -14,12 +14,10 @@ from fastapi.responses import JSONResponse
 from prometheus_client import make_asgi_app
 from sqlmodel import Session, select
 
-from bank_connector.iso20022 import build_pain001, parse_pain002, PaymentStatus
-from treasury_observability.metrics import (
-    rails_dlq_depth,
-    rails_end_to_end_seconds,
-    rails_post_total,
-)
+from bank_connector.iso20022 import PaymentStatus, build_pain001, parse_pain002
+from treasury_observability.metrics import (rails_dlq_depth,
+                                            rails_end_to_end_seconds,
+                                            rails_post_total)
 
 from .db import SweepOrder, get_session, init_db
 from .models import PaymentStatusResponse, SweepOrderRequest
@@ -34,23 +32,28 @@ app.mount("/metrics", make_asgi_app())
 # Env flags
 # ---------------------------------------------------------------------------
 
+
 def _env_bool(name: str, default: str = "0") -> bool:
     return os.getenv(name, default).lower() in {"1", "true", "yes", "on", "y"}
 
 
 # These are read at runtime so tests can monkeypatch env per request
 
+
 def _rails_enabled() -> bool:
     return _env_bool("BANK_RAILS_ENABLED", "0")
 
 
 def _rails_url() -> str:
-    return os.getenv("BANK_RAILS_URL", os.getenv("BANK_API_URL", "http://localhost:8000"))
+    return os.getenv(
+        "BANK_RAILS_URL", os.getenv("BANK_API_URL", "http://localhost:8000")
+    )
 
 
 # ---------------------------------------------------------------------------
 # In-process DLQ
 # ---------------------------------------------------------------------------
+
 
 class _DlqItem(TypedDict):
     bank_id: str
@@ -64,7 +67,7 @@ _worker_started = False
 
 
 async def _backoff_sleep(attempt: int) -> None:
-    base = min(5.0, 0.1 * (2 ** attempt))  # cap at 5s
+    base = min(5.0, 0.1 * (2**attempt))  # cap at 5s
     delay = base * (0.8 + 0.4 * random.random())
     await asyncio.sleep(delay)
 
@@ -96,7 +99,9 @@ async def _dlq_worker() -> None:
                 endpoint="sweep",
                 bank_id=item["bank_id"],
             ).inc()
-            rails_end_to_end_seconds.labels(endpoint="sweep", bank_id=item["bank_id"]).observe(duration)
+            rails_end_to_end_seconds.labels(
+                endpoint="sweep", bank_id=item["bank_id"]
+            ).observe(duration)
             if result == "ok":
                 _DLQ.popleft()
             else:
@@ -133,7 +138,9 @@ async def create_sweep_order(
 ):
     idem = idempotency_key or str(uuid.uuid4())
     # persist (idempotent upsert by order_id)
-    existing: SweepOrder | None = session.exec(select(SweepOrder).where(SweepOrder.order_id == payload.order_id)).first()
+    existing: SweepOrder | None = session.exec(
+        select(SweepOrder).where(SweepOrder.order_id == payload.order_id)
+    ).first()
     if existing:
         return {"id": existing.id, "queued": False}
 
@@ -175,7 +182,12 @@ async def create_sweep_order(
     xml_bytes = xml_str.encode()
 
     if not _rails_enabled():
-        rails_post_total.labels(result="ok", http_status="disabled", endpoint="sweep", bank_id=payload.debtor).inc()
+        rails_post_total.labels(
+            result="ok",
+            http_status="disabled",
+            endpoint="sweep",
+            bank_id=payload.debtor,
+        ).inc()
         order.status = "SENT"
         session.add(order)
         session.commit()
@@ -191,8 +203,15 @@ async def create_sweep_order(
             )
         duration = time.perf_counter() - start
         result = "ok" if 200 <= r.status_code < 300 else "err"
-        rails_post_total.labels(result=result, http_status=str(r.status_code), endpoint="sweep", bank_id=payload.debtor).inc()
-        rails_end_to_end_seconds.labels(endpoint="sweep", bank_id=payload.debtor).observe(duration)
+        rails_post_total.labels(
+            result=result,
+            http_status=str(r.status_code),
+            endpoint="sweep",
+            bank_id=payload.debtor,
+        ).inc()
+        rails_end_to_end_seconds.labels(
+            endpoint="sweep", bank_id=payload.debtor
+        ).observe(duration)
         if result == "ok":
             order.status = "SENT"
             session.add(order)
@@ -200,7 +219,14 @@ async def create_sweep_order(
             return {"id": order.id, "queued": False}
         raise RuntimeError("non-2xx")
     except Exception:
-        _DLQ.append({"bank_id": payload.debtor, "xml": xml_bytes, "attempt": 0, "idem_key": idem})
+        _DLQ.append(
+            {
+                "bank_id": payload.debtor,
+                "xml": xml_bytes,
+                "attempt": 0,
+                "idem_key": idem,
+            }
+        )
         rails_dlq_depth.set(len(_DLQ))
         order.status = "QUEUED"
         session.add(order)
@@ -226,10 +252,14 @@ async def payment_status(
         "ACTC": "ACCEPTED",
         "RJCT": "REJECTED",
     }
-    internal = iso_map.get(raw_status.value if hasattr(raw_status, "value") else str(raw_status), "UNKNOWN")
+    internal = iso_map.get(
+        raw_status.value if hasattr(raw_status, "value") else str(raw_status), "UNKNOWN"
+    )
     order_id = request.headers.get("X-Order-ID")
     if order_id:
-        row: SweepOrder | None = session.exec(select(SweepOrder).where(SweepOrder.order_id == order_id)).first()
+        row: SweepOrder | None = session.exec(
+            select(SweepOrder).where(SweepOrder.order_id == order_id)
+        ).first()
         if row:
             row.status = internal
             session.add(row)

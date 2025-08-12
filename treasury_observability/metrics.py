@@ -254,3 +254,9 @@ quant_publish_latency_seconds = get_metric(
     buckets=(0.05, 0.1, 0.25, 0.5, 1, 2, 5),
 )
 
+# Liquidity / Quant circuit-breaker state (0=closed, 1=open)
+quant_circuit_open = get_metric(
+    Gauge,
+    "quant_circuit_open",
+    "Circuit breaker state for Quant publish (0=closed, 1=open)",
+)

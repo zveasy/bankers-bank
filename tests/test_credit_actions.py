@@ -6,8 +6,8 @@ from typing import Dict
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlmodel import Session, SQLModel, create_engine
 from sqlalchemy.pool import StaticPool
+from sqlmodel import Session, SQLModel, create_engine
 
 from asset_aggregator.db import AssetSnapshot
 from credit_facility.api import create_app

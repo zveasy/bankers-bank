@@ -6,6 +6,7 @@ Prints 'PAYMENTS SMOKE: OK' on success and exits 0.
 
 import os
 import sys
+
 import httpx
 from fastapi.testclient import TestClient
 
@@ -44,7 +45,9 @@ def main() -> int:
 
     resp = client.post("/sweep-order", json=payload)
     if resp.status_code != 200:
-        print(f"SMOKE ERR: /sweep-order {resp.status_code} – {resp.text}", file=sys.stderr)
+        print(
+            f"SMOKE ERR: /sweep-order {resp.status_code} – {resp.text}", file=sys.stderr
+        )
         return 1
 
     metrics = client.get("/metrics").text
