@@ -110,6 +110,9 @@ jobs:
   # ────────────────────────────────
   test-python-poetry:
     runs-on: ubuntu-latest
+    steps:
+      - name: No-op
+        run: echo "Poetry workflow placeholder"
 
   # ────────────────────────────────
   # Observability lint: alert rules & dashboards
