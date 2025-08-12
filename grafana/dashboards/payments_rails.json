@@ -1,0 +1,132 @@
+{
+  "uid": "payments-rails",
+  "title": "Payments / Rails",
+  "tags": ["payments", "rails", "bank_connector"],
+  "timezone": "",
+  "version": 1,
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "time": { "from": "now-6h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "DS_PROMETHEUS",
+        "type": "datasource",
+        "query": "prometheus",
+        "label": "Datasource",
+        "hide": 0,
+        "refresh": 1
+      },
+      {
+        "name": "bank",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "label": "Bank",
+        "query": "label_values(rails_post_total, bank_id)",
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "refresh": 2
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "DLQ Depth",
+      "type": "gauge",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 7 },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 1 },
+              { "color": "red", "value": 5 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rails_dlq_depth{bank_id=~\"$bank\"})"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Rails Posts /s by result",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "x": 6, "y": 0, "w": 18, "h": 7 },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (result)(rate(rails_post_total{endpoint=\"sweep\",bank_id=~\"$bank\"}[5m]))"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Rails p95 End-to-End Latency (s)",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "x": 0, "y": 7, "w": 12, "h": 7 },
+      "options": { "legend": { "displayMode": "hidden" } },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le)(rate(rails_end_to_end_seconds_bucket{endpoint=\"sweep\",bank_id=~\"$bank\"}[5m])))"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "5xx Post Rate (/s)",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "x": 12, "y": 7, "w": 6, "h": 7 },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(rails_post_total{bank_id=~\"$bank\",http_status=~\"5..\"}[5m]))"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Accepted vs Rejected (last 1h)",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "x": 18, "y": 7, "w": 6, "h": 7 },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "fieldConfig": { "defaults": { "unit": "none" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "ACCP",
+          "expr": "sum(increase(rails_post_total{bank_id=~\"$bank\",result=\"ok\"}[1h]))"
+        },
+        {
+          "refId": "RJCT",
+          "expr": "sum(increase(rails_post_total{bank_id=~\"$bank\",result=~\"err|reject\"}[1h]))"
+        }
+      ]
+    }
+  ]
+}
