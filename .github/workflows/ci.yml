@@ -123,10 +123,10 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Lint Prometheus alert rules
-        uses: docker://prom/prometheus:v2.52.0
+        uses: docker://prom/promtool:v2.52.0
         with:
           args: >-
-            promtool check rules /github/workspace/prometheus/alert_rules/observability.rules.yml
+            check rules /github/workspace/prometheus/alert_rules/observability.rules.yml
 
       - name: Verify Grafana dashboards are valid JSON
         run: |
@@ -153,14 +153,10 @@ jobs:
         uses: actions/cache@v3
         with:
           path: .venv
-          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
 
       - name: Install dependencies (if not cached)
         if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
         run: poetry install --no-interaction --no-root
-
-      - name: Install project
-        run: poetry install --no-interaction
 
   # ────────────────────────────────
   # Run credit smoke test with docker compose
