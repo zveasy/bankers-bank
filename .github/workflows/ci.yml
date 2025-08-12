@@ -133,26 +133,6 @@ jobs:
           sudo apt-get update && sudo apt-get install -y jq
           for f in grafana/dashboards/*.json; do
             echo "Validating $f"; jq empty "$f"; done
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install Poetry
-        uses: snok/install-poetry@v1
-        with:
-          version: latest
-          virtualenvs-create: true
-          virtualenvs-in-project: true
-
-      - name: Load cached venv
-        id: cached-poetry-dependencies
-        uses: actions/cache@v3
-        with:
-          path: .venv
-
-      - name: Install dependencies (if not cached)
-        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction --no-root
 
   # ────────────────────────────────
   # Run credit smoke test with docker compose
