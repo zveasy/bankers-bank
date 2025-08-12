@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: treasury-orchestrator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: treasury-orchestrator
+  template:
+    metadata:
+      labels:
+        app: treasury-orchestrator
+    spec:
+      containers:
+      - name: treasury-orchestrator
+        image: {{ .Values.treasury_orchestrator.image }}
+        envFrom:
+        - configMapRef:
+            name: bankers-bank-env
+        ports:
+        - containerPort: {{ .Values.treasury_orchestrator.port }}
+        - containerPort: 8001
+        command: ["uvicorn", "asset_aggregator.api:app", "--host", "0.0.0.0", "--port", "{{ .Values.treasury_orchestrator.port }}"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: treasury-orchestrator
+spec:
+  ports:
+  - port: {{ .Values.treasury_orchestrator.port }}
+    targetPort: {{ .Values.treasury_orchestrator.port }}
+  - port: 8001
+    targetPort: 8001
+  selector:
+    app: treasury-orchestrator

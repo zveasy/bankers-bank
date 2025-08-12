@@ -1,0 +1,9 @@
+{
+  "default_cap": 1000000.0,
+  "banks": {
+    "demo-bank": {
+      "cap": 5000000.0,
+      "buffer": 100000.0
+    }
+  }
+}

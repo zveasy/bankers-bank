@@ -1,6 +1,6 @@
 # Certificates & local env
 certs/
-.env.development/
+.env.development
 
 # Python
 __pycache__/
@@ -33,6 +33,7 @@ build/
 # OS
 .DS_Store
 Thumbs.db
+*.db
 
 # Test outputs
 test_output.json
