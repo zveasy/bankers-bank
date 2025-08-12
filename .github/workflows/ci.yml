@@ -302,7 +302,7 @@ jobs:
                   time.sleep(delay)
               print('Timed out waiting for service', file=sys.stderr)
               sys.exit(1)
-          wait('http://127.0.0.1:8000')
+          wait('http://127.0.0.1:9100')
           PY
 
       - name: Set up Python for smoke
@@ -315,7 +315,7 @@ jobs:
 
       - name: Run liquidity smoke
         env:
-          QUANT_URL: http://127.0.0.1:8000
+          QUANT_URL: http://127.0.0.1:9100
         run: python scripts/smoke_liquidity.py
 
       - name: Dump logs on failure
