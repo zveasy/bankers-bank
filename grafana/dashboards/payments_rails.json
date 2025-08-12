@@ -1,0 +1,9 @@
+{
+  "id": null,
+  "uid": "payments-rails",
+  "title": "Payments Rails",
+  "schemaVersion": 37,
+  "version": 1,
+  "refresh": "30s",
+  "panels": []
+}
