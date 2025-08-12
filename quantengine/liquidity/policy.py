@@ -53,6 +53,7 @@ class EvaluationResult(TypedDict):
 # Pure helpers
 # ---------------------------------------------------------------------------
 
+
 def compute_buffer(available_cash_usd: float, min_cash_bps: int) -> float:
     """Return the *required* cash buffer in USD."""
     return round(available_cash_usd * (min_cash_bps / 10_000), 2)
@@ -68,6 +69,7 @@ def is_holiday(asof_date: date, settlement_calendar: Set[str] | None = None) -> 
 # ---------------------------------------------------------------------------
 # Main evaluation function
 # ---------------------------------------------------------------------------
+
 
 def evaluate(
     policy: LiquidityPolicy,

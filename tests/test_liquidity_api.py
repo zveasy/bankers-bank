@@ -10,10 +10,10 @@ from typing import List
 import pytest
 from fastapi.testclient import TestClient
 
-
 # ---------------------------------------------------------------------------
 # Helper to get the FastAPI app
 # ---------------------------------------------------------------------------
+
 
 def _get_app():
     """Import the FastAPI app with fallback for local router-only build."""
@@ -40,6 +40,7 @@ def client() -> TestClient:
 # Utilities
 # ---------------------------------------------------------------------------
 
+
 def _metrics_text(client: TestClient) -> str:
     r = client.get("/metrics")
     assert r.status_code == 200
@@ -49,6 +50,7 @@ def _metrics_text(client: TestClient) -> str:
 # ---------------------------------------------------------------------------
 # Tests – /liquidity/evaluate
 # ---------------------------------------------------------------------------
+
 
 def test_evaluate_happy_path(client: TestClient):
     payload = {
@@ -101,7 +103,10 @@ def test_evaluate_violation_records_counter(client: TestClient):
 # Tests – /bridge/publish
 # ---------------------------------------------------------------------------
 
-def test_publish_dry_run_increments_metrics(client: TestClient, monkeypatch: pytest.MonkeyPatch):
+
+def test_publish_dry_run_increments_metrics(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+):
     monkeypatch.setenv("QUANT_DRY_RUN", "1")
     payload = {
         "bank_id": "bank3",
