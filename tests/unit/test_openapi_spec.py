@@ -5,6 +5,7 @@ try:
 except ImportError:  # pragma: no cover - environment lacks PyYAML
     yaml = None
 
+
 @pytest.mark.skipif(yaml is None, reason="PyYAML not installed")
 def test_accounts_endpoint_exists():
     with open("api/openapi.yaml") as f:
@@ -12,6 +13,7 @@ def test_accounts_endpoint_exists():
 
     assert "/v1/accounts" in spec.get("paths", {})
     assert "post" in spec["paths"]["/v1/accounts"]
+
 
 @pytest.mark.skipif(yaml is None, reason="PyYAML not installed")
 def test_new_account_schema():

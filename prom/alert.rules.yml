@@ -1,0 +1,8 @@
+alert: HighLTVRatio
+expr: treas_ltv_ratio / max_ltv > 0.8
+for: 5m
+labels:
+  severity: critical
+annotations:
+  summary: "LTV ratio above 80% for {{ $labels.bank_id }}"
+  runbook: https://github.com/zveasy/bankers-bank/docs/runbooks/ltv_breach.md

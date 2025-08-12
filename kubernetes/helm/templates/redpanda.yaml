@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redpanda
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redpanda
+  template:
+    metadata:
+      labels:
+        app: redpanda
+    spec:
+      containers:
+      - name: redpanda
+        image: {{ .Values.redpanda.image }}
+        command: ["redpanda", "start", "--overprovisioned", "--smp", "1", "--memory", "1G", "--reserve-memory", "0M", "--node-id", "0", "--check=false"]
+        ports:
+        - containerPort: {{ .Values.redpanda.port }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redpanda
+spec:
+  ports:
+  - port: {{ .Values.redpanda.port }}
+    targetPort: {{ .Values.redpanda.port }}
+  selector:
+    app: redpanda
