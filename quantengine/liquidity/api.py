@@ -15,16 +15,15 @@ from fastapi import APIRouter, Depends, FastAPI, HTTPException
 from pydantic import BaseModel, Field, validator
 
 from ..bridge.quant_bridge import publish_cash_position
-from .policy import LiquidityPolicy, compute_buffer, evaluate as policy_evaluate
+from .policy import LiquidityPolicy, compute_buffer
+from .policy import evaluate as policy_evaluate
 
 # Prometheus metrics (already registered globally)
 try:
-    from treasury_observability.metrics import (
-        liquidity_buffer_usd,
-        policy_violations_total,
-        quant_publish_latency_seconds,
-        quant_publish_total,
-    )
+    from treasury_observability.metrics import (liquidity_buffer_usd,
+                                                policy_violations_total,
+                                                quant_publish_latency_seconds,
+                                                quant_publish_total)
 except Exception:  # pragma: no cover – fallback stubs for unit tests
 
     class _NoopMetric:  # noqa: D401 – simple stub
@@ -172,7 +171,9 @@ def bridge_publish(req: PublishRequest):
     finally:
         latency = time.perf_counter() - start
         try:
-            quant_publish_latency_seconds.labels(path="/bridge/publish").observe(latency)
+            quant_publish_latency_seconds.labels(path="/bridge/publish").observe(
+                latency
+            )
             quant_publish_total.labels(result=result_label).inc()
         except Exception:
             pass
@@ -187,6 +188,7 @@ def bridge_publish(req: PublishRequest):
 # ---------------------------------------------------------------------------
 # Optional helper to create a standalone app for tests
 # ---------------------------------------------------------------------------
+
 
 def create_app() -> FastAPI:  # pragma: no cover – used by tests when main unavailable
     from fastapi import FastAPI

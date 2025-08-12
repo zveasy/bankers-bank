@@ -6,9 +6,11 @@ import re
 
 import pytest
 
-from bank_connector.iso20022 import build_pain001, parse_pain002, PaymentStatus
+from bank_connector.iso20022 import PaymentStatus, build_pain001, parse_pain002
 
-BASE_DIR = pathlib.Path(__file__).parent.parent / "bank_connector" / "iso20022" / "fixtures"
+BASE_DIR = (
+    pathlib.Path(__file__).parent.parent / "bank_connector" / "iso20022" / "fixtures"
+)
 
 
 class FixedClock:

@@ -1,5 +1,6 @@
 import os
 import re
+
 import httpx
 import pytest
 from fastapi.testclient import TestClient
@@ -63,7 +64,12 @@ def test_sweep_failure_goes_to_dlq(monkeypatch: pytest.MonkeyPatch):
     _patch_async_client(monkeypatch, 500)
     client = _client()
     res = client.post("/sweep-order", json=_payload("FAIL-1"))
-    assert res.status_code in (202, 200, 201, 204)  # we expect enqueue behaviour, so 202 preferred but 200 tolerated depending on flag
+    assert res.status_code in (
+        202,
+        200,
+        201,
+        204,
+    )  # we expect enqueue behaviour, so 202 preferred but 200 tolerated depending on flag
 
 
 def test_payment_status_updates(monkeypatch: pytest.MonkeyPatch):
@@ -84,7 +90,9 @@ def test_payment_status_updates(monkeypatch: pytest.MonkeyPatch):
     </Document>
     """.strip()
 
-    r = client.post("/payment-status", data=pain002, headers={"Content-Type": "application/xml"})
+    r = client.post(
+        "/payment-status", data=pain002, headers={"Content-Type": "application/xml"}
+    )
     assert r.status_code == 200
     assert "SETTLED" in r.text
 
@@ -93,6 +101,7 @@ def test_dlq_drains_after_retry(monkeypatch):
     """First rails call fails, then succeeds; DLQ depth should return to 0."""
 
     import bank_connector.main as bc
+
     calls = {"n": 0}
 
     async def handler(request):  # noqa: D401
@@ -115,6 +124,7 @@ def test_dlq_drains_after_retry(monkeypatch):
 
     # allow background worker time
     import time as _t
+
     _t.sleep(0.8)
 
     depth = _scrape_value(client.get("/metrics").text, "rails_dlq_depth")
