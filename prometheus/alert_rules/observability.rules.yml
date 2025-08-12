@@ -1,0 +1,43 @@
+groups:
+  - name: observability
+    interval: 30s
+    rules:
+      - alert: RailsDLQNotEmpty
+        expr: max(rails_dlq_depth) > 0
+        for: 5m
+        labels:
+          severity: warning
+          team: sre
+        annotations:
+          summary: "Rails DLQ depth > 0 for 5m"
+          description: "There are items backing up in the payments DLQ (depth={{ $value }}). Investigate bank_connector logs and endpoints."
+
+      - alert: QuantCircuitOpen
+        expr: quant_circuit_open == 1
+        for: 10m
+        labels:
+          severity: critical
+          team: sre
+        annotations:
+          summary: "Quant circuit breaker is OPEN"
+          description: "Publishing to quant is disabled. Check policy violations and recent errors."
+
+      - alert: RailsLatencyHighP95
+        expr: histogram_quantile(0.95, sum by (le) (rate(rails_end_to_end_seconds_bucket[5m]))) > 1.5
+        for: 10m
+        labels:
+          severity: warning
+          team: sre
+        annotations:
+          summary: "Rails end-to-end p95 latency high"
+          description: "p95 > 1.5s in the last 10m. Check bank rails connectivity and downstream."
+
+      - alert: SnapshotFailuresSpike
+        expr: rate(snapshot_failure_total[10m]) > 0
+        for: 10m
+        labels:
+          severity: warning
+          team: sre
+        annotations:
+          summary: "Asset snapshot failures occurring"
+          description: "Snapshot failure rate has been non-zero for 10m. Inspect asset_aggregator logs."
