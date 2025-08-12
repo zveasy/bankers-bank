@@ -6,6 +6,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends build-essential
 
 ENV POETRY_VERSION=1.8.2 POETRY_HOME="/opt/poetry" POETRY_NO_INTERACTION=1
 ENV PATH="${POETRY_HOME}/bin:${PATH}"
+ENV LOG_FORMAT=json
 RUN pip install --no-cache-dir "poetry==$POETRY_VERSION"
 
 WORKDIR /app

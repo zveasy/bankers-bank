@@ -1,5 +1,8 @@
 """FastAPI router exposing credit actions (Sprint 7 / PR-2)."""
 from __future__ import annotations
+import os
+from common.logging import configure_logging
+configure_logging(os.getenv("LOG_FORMAT", "json"), service_name="credit_facility")
 
 import time
 from datetime import datetime
