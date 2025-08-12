@@ -28,7 +28,8 @@ RUN poetry lock --no-interaction --no-ansi \
 FROM python:3.11-slim-bookworm AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    LOG_FORMAT=json
 
 WORKDIR /app
 

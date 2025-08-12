@@ -1,5 +1,8 @@
 """FastAPI endpoints for the Asset Aggregator."""
 from __future__ import annotations
+import os
+from common.logging import configure_logging
+configure_logging(os.getenv("LOG_FORMAT", "json"), service_name="asset_aggregator")
 
 import socket
 import time

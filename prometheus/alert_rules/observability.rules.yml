@@ -32,6 +32,16 @@ groups:
           summary: "Rails end-to-end p95 latency high"
           description: "p95 > 1.5s in the last 10m. Check bank rails connectivity and downstream."
 
+      - alert: LiquidityPolicyViolationsSpike
+        expr: rate(policy_violations_total[5m]) > 0
+        for: 10m
+        labels:
+          severity: warning
+          team: sre
+        annotations:
+          summary: "Liquidity policy violations occurring"
+          description: "Non-zero policy_violations_total for 10 minutes."
+
       - alert: SnapshotFailuresSpike
         expr: rate(snapshot_failure_total[10m]) > 0
         for: 10m
