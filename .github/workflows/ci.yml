@@ -133,7 +133,6 @@ jobs:
           sudo apt-get update && sudo apt-get install -y jq
           for f in grafana/dashboards/*.json; do
             echo "Validating $f"; jq empty "$f"; done
-    steps:
       - uses: actions/checkout@v4
 
       - name: Set up Python
