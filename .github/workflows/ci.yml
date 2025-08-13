@@ -122,18 +122,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Validate Grafana dashboards (JSON)
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          for f in grafana/dashboards/*.json; do
+            echo "Linting $f"
+            jq -e . "$f" >/dev/null
+          done
+
       - name: Lint Prometheus alert rules
         run: |
           docker run --rm \
             -v "${{ github.workspace }}:/work" \
+            -w /work \
+            --entrypoint /bin/promtool \
             prom/prometheus:v2.52.0 \
-            promtool check rules /work/prometheus/alert_rules/observability.rules.yml
-
-      - name: Verify Grafana dashboards are valid JSON
-        run: |
-          sudo apt-get update && sudo apt-get install -y jq
-          for f in grafana/dashboards/*.json; do
-            echo "Validating $f"; jq empty "$f"; done
+            check rules prometheus/alert_rules/observability.rules.yml
 
   # ────────────────────────────────
   # Run credit smoke test with docker compose
