@@ -123,10 +123,11 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Lint Prometheus alert rules
-        uses: docker://prom/prometheus:v2.52.0
-        with:
-          args: >-
-            promtool check rules /github/workspace/prometheus/alert_rules/observability.rules.yml
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/work" \
+            prom/prometheus:v2.52.0 \
+            promtool check rules /work/prometheus/alert_rules/observability.rules.yml
 
       - name: Verify Grafana dashboards are valid JSON
         run: |
