@@ -24,6 +24,15 @@ import sys
 from pathlib import Path
 
 from sqlalchemy import create_engine
+
+# Ensure sqlmodel can import DOUBLE when using SQLAlchemy 1.4+ where it lives in MySQL dialect
+import sqlalchemy.types as _satypes
+if not hasattr(_satypes, "DOUBLE"):
+    try:
+        from sqlalchemy.dialects.mysql import DOUBLE as _MYSQL_DOUBLE
+        _satypes.DOUBLE = _MYSQL_DOUBLE
+    except ImportError:
+        pass  # Leave absent; sqlmodel will fallback or not need it
 from sqlalchemy.orm import sessionmaker
 from sqlmodel import Session as SQLSession
 
