@@ -36,7 +36,7 @@ jobs:
         run: poetry install --no-interaction --no-root
 
       - name: Ensure SQLAlchemy present
-        run: poetry run pip install --force-reinstall "SQLAlchemy<2"
+        run: poetry run pip install --force-reinstall "SQLAlchemy==1.4.49"
 
       - name: Seed SQLite DB for exporter
         run: |
