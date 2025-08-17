@@ -3,7 +3,11 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, condecimal, constr
 
-ISO4217 = constr(min_length=3, max_length=3, pattern=r"^[A-Z]{3}$")
+# Pydantic v2 replaces `regex` with `pattern`. Handle both.
+try:
+    ISO4217 = constr(min_length=3, max_length=3, regex=r"^[A-Z]{3}$")  # v1
+except TypeError:
+    ISO4217 = constr(min_length=3, max_length=3, pattern=r"^[A-Z]{3}$")  # v2
 
 
 class SweepOrderRequest(BaseModel):

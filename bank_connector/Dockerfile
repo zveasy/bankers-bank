@@ -23,7 +23,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends build-essential
 
 WORKDIR /app
 COPY --from=builder /tmp/requirements.txt /tmp/requirements.txt
+# install runtime deps; pin Pydantic v1 for constr(regex=...) compatibility
 RUN pip install --no-cache-dir -r /tmp/requirements.txt \
+    && pip install --no-cache-dir "pydantic<2" \
     && pip install --no-cache-dir psycopg2-binary==2.9.9 \
     && pip install --no-cache-dir "sqlmodel>=0.0.22"   # belt & suspenders
 

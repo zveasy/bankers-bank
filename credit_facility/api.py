@@ -20,6 +20,7 @@ from credit_facility.providers.mock_finastra import MockFinastra
 from credit_facility.service import CreditFacilityService
 from treasury_observability.metrics import (credit_actions_total,
                                             credit_provider_latency_seconds)
+from treasury_orchestrator.credit_db import log_audit, AuditAction
 
 # ---------------------------------------------------------------------------
 # Dependency injection helpers
@@ -99,6 +100,14 @@ async def _call_provider(
 # ---------------------------------------------------------------------------
 
 router = APIRouter(prefix="/api/credit/v1", tags=["credit"])
+
+
+def create_app() -> FastAPI:  # pragma: no cover
+    """Factory used by tests and __main__ entrypoint."""
+    app = FastAPI(title="Credit Facility Service")
+    app.include_router(router)
+    app.mount("/metrics", make_asgi_app())
+    return app
 
 
 @router.post(
