@@ -35,6 +35,9 @@ jobs:
       - name: Install dependencies
         run: poetry install --no-interaction --no-root
 
+      - name: Ensure SQLAlchemy present
+        run: poetry run pip install "SQLAlchemy<2"
+
       - name: Seed SQLite DB for exporter
         run: |
           python - <<'PY'
@@ -74,7 +77,7 @@ jobs:
       - name: Run audit exporter CLI
         run: |
           mkdir -p out
-          python bin/audit-export --db-url sqlite:///$(pwd)/test.db --out-dir ./out --batch-size 50
+          poetry run python bin/audit-export --db-url sqlite:///$(pwd)/test.db --out-dir ./out --batch-size 50
 
       - name: Verify export file exists
         run: |
