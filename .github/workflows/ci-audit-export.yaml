@@ -74,7 +74,7 @@ jobs:
       - name: Run audit exporter CLI
         run: |
           mkdir -p out
-          bin/audit-export --db-url sqlite:///$(pwd)/test.db --out-dir ./out --batch-size 50
+          python bin/audit-export --db-url sqlite:///$(pwd)/test.db --out-dir ./out --batch-size 50
 
       - name: Verify export file exists
         run: |
