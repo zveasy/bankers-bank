@@ -69,7 +69,7 @@ jobs:
           INSERT INTO credit_audit_journal (
             id, created_at, event_ts, bank_id, action, entity_type, entity_id, actor, payload
           ) VALUES (
-            'row1','2025-01-01','2025-01-01','bank1','create','t','1','ci-seed','{}'
+            'row1','2025-01-01T00:00:00Z','2025-01-01T00:00:00Z','bank1','create','t','1','ci-seed','{}'
           );
           """)
           conn.commit()
@@ -77,9 +77,11 @@ jobs:
           PY
 
       - name: Run audit exporter CLI
+        env:
+          PYTHONPATH: ${{ github.workspace }}
         run: |
           mkdir -p out
-          PYTHONPATH=$(pwd) poetry run python bin/audit-export \
+          poetry run python bin/audit-export \
             --db-url sqlite:///$(pwd)/test.db \
             --out-dir ./out --batch-size 50
 
