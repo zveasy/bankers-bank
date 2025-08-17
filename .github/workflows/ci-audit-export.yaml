@@ -69,7 +69,7 @@ jobs:
           INSERT INTO credit_audit_journal (
             id, created_at, event_ts, bank_id, action, entity_type, entity_id, actor, payload
           ) VALUES (
-            'row1','2025-01-01T00:00:00Z','2025-01-01T00:00:00Z','bank1','create','t','1','ci-seed','{}'
+            'row1','2025-01-01 00:00:00','2025-01-01 00:00:00','bank1','create','t','1','ci-seed','{}'
           );
           """)
           conn.commit()
