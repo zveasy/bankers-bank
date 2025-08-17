@@ -33,6 +33,13 @@ try:
         _satypes.DOUBLE = _MYSQL_DOUBLE
     if not hasattr(_satypes, "DOUBLE_PRECISION"):
         _satypes.DOUBLE_PRECISION = _MYSQL_DOUBLE
+    # Patch UUID type for sqlmodel when using SQLAlchemy 1.4+
+    if not hasattr(_satypes, "UUID"):
+        try:
+            from sqlalchemy.dialects.postgresql import UUID as _PG_UUID
+            _satypes.UUID = _PG_UUID
+        except ImportError:
+            pass
 except ImportError:
     # If MySQL dialect missing we just skip; sqlmodel will not need these types for SQLite
     pass
