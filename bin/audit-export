@@ -40,6 +40,15 @@ try:
             _satypes.UUID = _PG_UUID
         except ImportError:
             pass
+    # Ensure various capitalization variants for Double type
+    for _alias in ("Double", "DOUBLE", "DOUBLE_PRECISION"):
+        if not hasattr(_satypes, _alias):
+            try:
+                from sqlalchemy.dialects.mysql import DOUBLE as _MYSQL_DOUBLE
+                setattr(_satypes, _alias, _MYSQL_DOUBLE)
+            except ImportError:
+                from sqlalchemy import Float as _Float
+                setattr(_satypes, _alias, _Float)
 except ImportError:
     # If MySQL dialect missing we just skip; sqlmodel will not need these types for SQLite
     pass
