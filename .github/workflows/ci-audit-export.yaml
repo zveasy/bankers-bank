@@ -79,7 +79,9 @@ jobs:
       - name: Run audit exporter CLI
         run: |
           mkdir -p out
-          poetry run python bin/audit-export --db-url sqlite:///$(pwd)/test.db --out-dir ./out --batch-size 50
+          poetry run python bin/audit-export \
+            --db-url sqlite:///$(pwd)/test.db \
+            --out-dir ./out --batch-size 50
 
       - name: Verify export file exists
         run: |
