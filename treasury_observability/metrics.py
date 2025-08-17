@@ -260,3 +260,72 @@ quant_circuit_open = get_metric(
     "quant_circuit_open",
     "Circuit breaker state for Quant publish (0=closed, 1=open)",
 )
+
+# --- Audit / Retention ---
+# Export selection counter
+audit_export_rows_selected_total = get_metric(
+    Counter,
+    "audit_export_rows_selected_total",
+    "Rows selected for audit export",
+    ["service"],
+)
+
+# Files written counter by result (success|fail)
+audit_export_files_written_total = get_metric(
+    Counter,
+    "audit_export_files_written_total",
+    "Audit export files written by result",
+    ["service", "result"],
+)
+
+# Duration histogram (reuse if already defined)
+audit_export_duration_seconds = get_metric(
+    Histogram,
+    "audit_export_duration_seconds",
+    "Audit export duration seconds",
+    ["service"],
+)
+
+# Retention deletion counter
+audit_retention_rows_deleted_total = get_metric(
+    Counter,
+    "audit_retention_rows_deleted_total",
+    "Audit rows deleted by retention sweeper",
+    ["service"],
+)
+
+# Backlog gauge: rows older than cutoff
+audit_backlog_rows = get_metric(
+    Gauge,
+    "audit_backlog_rows",
+    "Unexported audit rows older than cutoff",
+    ["service"],
+)
+
+audit_export_success_total = get_metric(
+    Counter,
+    "audit_export_success_total",
+    "Successful audit exports",
+    ["service"],
+)
+
+audit_export_failure_total = get_metric(
+    Counter,
+    "audit_export_failure_total",
+    "Failed audit exports",
+    ["service", "reason"],
+)
+
+audit_export_duration_seconds = get_metric(
+    Histogram,
+    "audit_export_duration_seconds",
+    "Audit export duration",
+    ["service"],
+)
+
+audit_pending_rows = get_metric(
+    Gauge,
+    "audit_pending_rows",
+    "Rows pending export",
+    ["service"],
+)

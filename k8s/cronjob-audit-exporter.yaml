@@ -1,0 +1,41 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: audit-exporter
+  labels:
+    app: audit-exporter
+spec:
+  schedule: "*/5 * * * *"  # every 5 minutes
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 120
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      backoffLimit: 3
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: audit-exporter
+              image: your-repo/treasury:latest
+              imagePullPolicy: IfNotPresent
+              command: ["/app/bin/audit-export"]
+              args:
+                - --batch-size=5000
+                - --cutoff-lag-min=5
+                - --max-batches=10
+              env:
+                - name: DATABASE_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: treasury-secrets
+                      key: DATABASE_URL
+                - name: AUDIT_EXPORT_DIR
+                  value: /var/lib/audit-exports
+              volumeMounts:
+                - name: audit-exports
+                  mountPath: /var/lib/audit-exports
+          volumes:
+            - name: audit-exports
+              emptyDir: {}

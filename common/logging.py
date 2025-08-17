@@ -67,8 +67,11 @@ def configure_logging(fmt: str | None = None, *, service_name: str | None = None
             def level(self):  # type: ignore
                 return self.logger.level
 
-        def _get_logger(name: Optional[str] = None) -> ServiceLoggerAdapter:  # type: ignore
-            base_logger = _orig_get_logger(name) if name else root
-            return ServiceLoggerAdapter(base_logger, extra={"service": service_name})
+        def _get_logger(name: Optional[str] = None):  # type: ignore
+             # Do NOT wrap the root logger; pytest and others expect actual Logger.
+             if name is None or name == "root":
+                 return _orig_get_logger(name)
+             base_logger = _orig_get_logger(name)
+             return ServiceLoggerAdapter(base_logger, extra={"service": service_name})
 
         logging.getLogger = _get_logger  # type: ignore
