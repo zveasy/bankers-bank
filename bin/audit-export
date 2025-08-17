@@ -1,0 +1,69 @@
+#!/usr/bin/env python3
+"""CLI wrapper to run `AuditExporter` batches.
+
+Reads configuration from command-line flags or environment variables:
+
+ENV / flag            default
+-------------------   ------------------
+DATABASE_URL          --db-url (required if env missing)
+AUDIT_EXPORT_DIR      ./audit_exports
+AUDIT_EXPORT_BATCH    5000
+AUDIT_EXPORT_LAG_MIN  5
+
+Example:
+    bin/audit-export --db-url $DATABASE_URL --out-dir /mnt/exports
+
+Exit code 0 on success, non-zero on error.
+"""
+from __future__ import annotations
+
+import argparse
+import datetime as dt
+import os
+import sys
+from pathlib import Path
+
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlmodel import Session as SQLSession
+
+# Import exporter from credit_facility
+try:
+    from credit_facility.audit_exporter import AuditExporter
+except ImportError as exc:
+    print(f"error: cannot import AuditExporter – {exc}", file=sys.stderr)
+    sys.exit(2)
+
+
+def parse_args() -> argparse.Namespace:
+    ap = argparse.ArgumentParser(description="Run audit exporter batches")
+    ap.add_argument("--db-url", default=os.getenv("DATABASE_URL"), help="SQLAlchemy database URL")
+    ap.add_argument("--out-dir", default=os.getenv("AUDIT_EXPORT_DIR", "./audit_exports"))
+    ap.add_argument("--batch-size", type=int, default=int(os.getenv("AUDIT_EXPORT_BATCH", 5000)))
+    ap.add_argument("--cutoff-lag-min", type=int, default=int(os.getenv("AUDIT_EXPORT_LAG_MIN", 5)))
+    ap.add_argument("--max-batches", type=int, default=None)
+    ap.add_argument("--dry-run", action="store_true")
+    return ap.parse_args()
+
+
+def main() -> None:
+    args = parse_args()
+    if not args.db_url:
+        print("error: --db-url or $DATABASE_URL required", file=sys.stderr)
+        sys.exit(2)
+
+    engine = create_engine(args.db_url, pool_pre_ping=True, future=True)
+    sf = sessionmaker(engine, class_=SQLSession, autoflush=False, expire_on_commit=False, future=True)
+
+    exporter = AuditExporter(
+        session_factory=sf,
+        out_dir=Path(args.out_dir),
+        batch_size=args.batch_size,
+        cutoff_seconds=args.cutoff_lag_min * 60,
+    )
+    stats = exporter.run_until_empty(max_batches=args.max_batches, dry_run=args.dry_run)
+    print(stats)
+
+
+if __name__ == "__main__":
+    main()
