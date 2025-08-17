@@ -36,7 +36,7 @@ jobs:
         run: |
           poetry install --no-interaction --no-root
           poetry run pip uninstall -y SQLAlchemy
-          poetry run pip install "SQLAlchemy==1.4.49"
+          poetry run pip install "SQLAlchemy==1.3.24"
 
       - name: Seed SQLite DB for exporter
         run: |
