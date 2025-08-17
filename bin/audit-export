@@ -41,7 +41,7 @@ try:
         except ImportError:
             pass
     # Ensure various capitalization variants for Double type
-    for _alias in ("Double", "DOUBLE", "DOUBLE_PRECISION"):
+    for _alias in ("Double", "DOUBLE", "DOUBLE_PRECISION", "Uuid", "UUID"):
         if not hasattr(_satypes, _alias):
             try:
                 from sqlalchemy.dialects.mysql import DOUBLE as _MYSQL_DOUBLE
