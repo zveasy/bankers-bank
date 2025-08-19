@@ -1,0 +1,69 @@
+name: Audit Exporter Smoke (latest)
+
+on:
+  pull_request:
+    paths:
+      - "credit_facility/**"
+      - "bin/audit-export"
+      - "tests/test_sa_compat.py"
+  workflow_dispatch:
+
+jobs:
+  smoke-latest:
+    name: Audit exporter smoke (latest – allow-fail)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: latest
+
+      - name: Install project deps
+        run: poetry install --no-interaction --no-root
+
+      - name: Upgrade key libraries to latest
+        run: |
+          poetry run pip install -U "sqlalchemy>=2,<3" "sqlmodel>=0.0.16" "pydantic>=2,<3"
+
+      - name: Seed SQLite DB for exporter
+        run: |
+          python - <<'PY'
+          import sqlite3, pathlib
+          db = pathlib.Path('test.db')
+          conn = sqlite3.connect(db)
+          conn.execute("""
+          CREATE TABLE credit_audit_journal (
+            id TEXT PRIMARY KEY,
+            created_at TEXT,
+            event_ts TEXT,
+            bank_id TEXT,
+            action TEXT,
+            entity_type TEXT,
+            entity_id TEXT,
+            actor TEXT,
+            payload TEXT
+          );
+          """)
+          conn.execute("""
+          INSERT INTO credit_audit_journal (
+            id, created_at, event_ts, bank_id, action, entity_type, entity_id, actor, payload
+          ) VALUES (
+            'row1','2025-01-01 00:00:00','2025-01-01 00:00:00','bank1','create','t','1','ci-seed','{}'
+          );
+          """)
+          conn.commit()
+          conn.close()
+          PY
+
+      - name: Run exporter --help
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: poetry run python bin/audit-export --help

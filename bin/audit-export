@@ -23,35 +23,13 @@ import os
 import sys
 from pathlib import Path
 
+from credit_facility.sa_compat import apply as _apply_sa_compat
+_apply_sa_compat()
+
 from sqlalchemy import create_engine
 
-# Ensure sqlmodel can import DOUBLE / DOUBLE_PRECISION when missing (SQLAlchemy ≥1.4)
-import sqlalchemy.types as _satypes
-try:
-    from sqlalchemy.dialects.mysql import DOUBLE as _MYSQL_DOUBLE
-    if not hasattr(_satypes, "DOUBLE"):
-        _satypes.DOUBLE = _MYSQL_DOUBLE
-    if not hasattr(_satypes, "DOUBLE_PRECISION"):
-        _satypes.DOUBLE_PRECISION = _MYSQL_DOUBLE
-    # Patch UUID type for sqlmodel when using SQLAlchemy 1.4+
-    if not hasattr(_satypes, "UUID"):
-        try:
-            from sqlalchemy.dialects.postgresql import UUID as _PG_UUID
-            _satypes.UUID = _PG_UUID
-        except ImportError:
-            pass
-    # Ensure various capitalization variants for Double type
-    for _alias in ("Double", "DOUBLE", "DOUBLE_PRECISION", "Uuid", "UUID"):
-        if not hasattr(_satypes, _alias):
-            try:
-                from sqlalchemy.dialects.mysql import DOUBLE as _MYSQL_DOUBLE
-                setattr(_satypes, _alias, _MYSQL_DOUBLE)
-            except ImportError:
-                from sqlalchemy import Float as _Float
-                setattr(_satypes, _alias, _Float)
-except ImportError:
-    # If MySQL dialect missing we just skip; sqlmodel will not need these types for SQLite
-    pass
+# sa_compat already injected required types; no inline monkeypatch needed
+
 from sqlalchemy.orm import sessionmaker
 from sqlmodel import Session as SQLSession
 
