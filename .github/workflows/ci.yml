@@ -210,6 +210,10 @@ jobs:
   compose-smoke-payments:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+      POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+      POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
     steps:
       - uses: actions/checkout@v4
 
@@ -271,6 +275,10 @@ jobs:
   compose-smoke-liquidity:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+      POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+      POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
     steps:
       - uses: actions/checkout@v4
 
