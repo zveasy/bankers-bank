@@ -16,6 +16,16 @@ def pytest_configure(config):
 
 
 # ---------------------------------------------------------------------------
+# Default auth token for API tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _api_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("API_TOKEN", "testtoken")
+
+
+# ---------------------------------------------------------------------------
 # Fake Redis for offline unit tests
 # ---------------------------------------------------------------------------
 

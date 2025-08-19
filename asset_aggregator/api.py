@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, timezone
 from typing import List
 
 from fastapi import Depends, FastAPI, HTTPException
+from common.auth import require_token
 from prometheus_client import make_asgi_app
 from pydantic import BaseModel
 from sqlmodel import Session, select
@@ -30,7 +31,7 @@ class SnapshotRequest(BaseModel):
 
 
 @app.get("/healthz", response_model=dict)
-async def healthz():
+async def healthz(_: None = Depends(require_token)):
     # Parse "host:port" from KAFKA_BOOTSTRAP with safe defaults
     host, sep, port = (KAFKA_BOOTSTRAP or "").partition(":")
     host = host or "redpanda"
@@ -60,7 +61,11 @@ def get_session() -> Session:
 
 
 @app.post("/snapshot")
-def create_snapshot(payload: SnapshotRequest | None = None, bank_id: str | None = None):
+def create_snapshot(
+    payload: SnapshotRequest | None = None,
+    bank_id: str | None = None,
+    _: None = Depends(require_token),
+):
     t0 = time.perf_counter()
     try:
         bank = bank_id or (payload.bank_id if payload else None) or "O&L"
@@ -97,6 +102,7 @@ def create_snapshot(payload: SnapshotRequest | None = None, bank_id: str | None 
 def get_summary(
     bank_id: str,
     session: Session = Depends(get_session),
+    _: None = Depends(require_token),
 ) -> AssetSnapshot:
     row = session.exec(
         select(AssetSnapshot)
@@ -113,6 +119,7 @@ def get_history(
     bank_id: str,
     days: int = 1,
     session: Session = Depends(get_session),
+    _: None = Depends(require_token),
 ):
     since = datetime.now(tz=timezone.utc) - timedelta(days=days)
     rows = session.exec(
