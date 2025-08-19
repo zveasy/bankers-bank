@@ -21,7 +21,9 @@ if HTTPX_AVAILABLE:
             "debtor": "Alice",
             "creditor": "Bob",
         }
-        resp = client.post("/sweep-order", json=payload)
+        resp = client.post(
+            "/sweep-order", json=payload, headers={"Authorization": "Bearer testtoken"}
+        )
         assert resp.status_code == 200
 
     @pytest.mark.enable_socket
@@ -38,6 +40,38 @@ if HTTPX_AVAILABLE:
                 "debtor": "A",
                 "creditor": "B",
             },
+            headers={"Authorization": "Bearer testtoken"},
         )
-        resp = client.post("/payment-status", data=xml, headers={"X-Order-ID": "abc"})
+        resp = client.post(
+            "/payment-status",
+            data=xml,
+            headers={"X-Order-ID": "abc", "Authorization": "Bearer testtoken"},
+        )
         assert resp.status_code == 200
+
+    def test_sweep_order_unauthorized():
+        client = TestClient(app)
+        payload = {
+            "order_id": "123",
+            "amount": 10.0,
+            "currency": "USD",
+            "debtor": "Alice",
+            "creditor": "Bob",
+        }
+        assert client.post("/sweep-order", json=payload).status_code == 401
+
+    def test_sweep_order_forbidden():
+        client = TestClient(app)
+        payload = {
+            "order_id": "123",
+            "amount": 10.0,
+            "currency": "USD",
+            "debtor": "Alice",
+            "creditor": "Bob",
+        }
+        resp = client.post(
+            "/sweep-order",
+            json=payload,
+            headers={"Authorization": "Bearer wrong"},
+        )
+        assert resp.status_code == 403

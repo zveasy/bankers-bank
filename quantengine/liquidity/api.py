@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException
+from common.auth import require_token
 from pydantic import BaseModel, Field, validator
 
 from ..bridge.quant_bridge import publish_cash_position
@@ -105,7 +106,9 @@ class PublishResponse(BaseModel):
 
 
 @router.post("/liquidity/evaluate", response_model=EvaluateResponse)
-def liquidity_evaluate(req: EvaluateRequest):
+def liquidity_evaluate(
+    req: EvaluateRequest, _: None = Depends(require_token)
+):
     policy = req.as_policy()
 
     # asof date (YYYY-MM-DD) for holiday rule
@@ -143,7 +146,9 @@ def liquidity_evaluate(req: EvaluateRequest):
 
 
 @router.post("/bridge/publish", response_model=PublishResponse)
-def bridge_publish(req: PublishRequest):
+def bridge_publish(
+    req: PublishRequest, _: None = Depends(require_token)
+):
     dry_run = os.getenv("QUANT_DRY_RUN", "1") != "0"
 
     start = time.perf_counter()
