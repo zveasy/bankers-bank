@@ -59,6 +59,24 @@ start http://localhost:9000/docs  # Asset Aggregator
 docker compose down -v
 ```
 
+### Grafana dashboards
+
+Grafana runs with authentication enabled and is only bound to `localhost` to
+avoid exposing dashboards beyond internal networks.
+
+1.  Set credentials in `.env`:
+
+    ```bash
+    GF_ADMIN_USER=admin
+    GF_ADMIN_PASSWORD=changeme
+    ```
+
+2.  Start the stack with `docker compose up`.
+3.  Browse to [http://localhost:3000](http://localhost:3000) and log in with the
+    credentials above.
+4.  Do not publish the Grafana port publicly without additional network
+    protections (VPN, firewall, etc.).
+
 ### Health & smoke
 
 - Health endpoints:
