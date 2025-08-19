@@ -28,9 +28,10 @@ def _use_mock() -> bool:
 class FinastraAPIClient:
     """Minimal client for Finastra Account & Collateral APIs."""
 
-    def __init__(self, token: str, base_url: str = "http://127.0.0.1:8000"):
+    def __init__(self, token: str, base_url: str = "https://127.0.0.1:8000", verify: str | bool = True):
         self.token = token
         self.base_url = base_url.rstrip("/")
+        self.verify = verify
 
     def _headers(self) -> Dict[str, str]:
         return {
@@ -49,7 +50,8 @@ class FinastraAPIClient:
                 "https://api.fusionfabric.cloud/account-information/v2/consumers/"
                 f"{consumer_id}/accounts/extendedWithDetails"
             )
-        resp = requests.get(url, headers=self._headers())
+        kwargs = {"verify": self.verify} if self.verify is not True else {}
+        resp = requests.get(url, headers=self._headers(), **kwargs)
         resp.raise_for_status()
         return resp.json()
 
@@ -60,7 +62,8 @@ class FinastraAPIClient:
         else:
             url = "https://api.fusionfabric.cloud/collateral/v1/collaterals"
             params = {"accountId": account_id}
-        resp = requests.get(url, params=params, headers=self._headers())
+        kwargs = {"verify": self.verify} if self.verify is not True else {}
+        resp = requests.get(url, params=params, headers=self._headers(), **kwargs)
         resp.raise_for_status()
         return resp.json()
 

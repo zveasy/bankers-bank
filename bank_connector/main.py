@@ -49,7 +49,7 @@ def _rails_enabled() -> bool:
 
 def _rails_url() -> str:
     return os.getenv(
-        "BANK_RAILS_URL", os.getenv("BANK_API_URL", "http://localhost:8000")
+        "BANK_RAILS_URL", os.getenv("BANK_API_URL", "https://localhost:8000")
     )
 
 
@@ -85,7 +85,7 @@ async def _dlq_worker() -> None:
         item = _DLQ[0]  # peek
         try:
             start = time.perf_counter()
-            async with httpx.AsyncClient(timeout=5.0) as client:
+            async with httpx.AsyncClient(timeout=5.0, verify=os.getenv("CA_CERT", True)) as client:
                 r = await client.post(
                     _rails_url(),
                     content=item["xml"],
@@ -198,7 +198,7 @@ async def create_sweep_order(
 
     try:
         start = time.perf_counter()
-        async with httpx.AsyncClient(timeout=5.0) as client:
+        async with httpx.AsyncClient(timeout=5.0, verify=os.getenv("CA_CERT", True)) as client:
             r = await client.post(
                 _rails_url(),
                 content=xml_bytes,
@@ -284,8 +284,8 @@ async def create_sweep_order(
     # )
     xml = "<pain.001></pain.001>"  # Stubbed XML
     start = time.perf_counter()
-    bank_api_url = os.getenv("BANK_API_URL", "http://localhost:8000")
-    async with httpx.AsyncClient() as client:
+    bank_api_url = os.getenv("BANK_API_URL", "https://localhost:8000")
+    async with httpx.AsyncClient(verify=os.getenv("CA_CERT", True)) as client:
         await client.post(
             bank_api_url, data=xml, headers={"Content-Type": "application/xml"}
         )

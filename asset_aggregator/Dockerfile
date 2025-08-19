@@ -45,8 +45,11 @@ COPY . .
 
 # Non-root
 RUN useradd -m app && chown -R app:app /app
+COPY certs/dev.pem /certs/server.pem
+COPY certs/dev.key /certs/server.key
+RUN chown -R app:app /certs && chmod 644 /certs/server.pem && chmod 600 /certs/server.key
 USER app
 
 EXPOSE 8000 8001
-HEALTHCHECK --interval=15s --timeout=3s --retries=5 CMD wget -qO- http://localhost:8000/healthz || exit 1
-CMD ["uvicorn", "asset_aggregator.api:app", "--host", "0.0.0.0", "--port", "8000"]
+HEALTHCHECK --interval=15s --timeout=3s --retries=5 CMD wget -qO- --ca-certificate=/certs/server.pem https://localhost:8000/healthz || exit 1
+CMD ["uvicorn", "asset_aggregator.api:app", "--host", "0.0.0.0", "--port", "8000", "--ssl-certfile", "/certs/server.pem", "--ssl-keyfile", "/certs/server.key"]

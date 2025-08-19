@@ -3,7 +3,7 @@
 Usage (PowerShell):
 
 ```powershell
-$env:CREDIT_URL="http://127.0.0.1:8050"
+$env:CREDIT_URL="https://127.0.0.1:8050"
 poetry run python scripts/smoke_credit.py
 ```
 """
@@ -16,7 +16,7 @@ from typing import Final
 
 import requests
 
-BASE: Final[str] = os.getenv("CREDIT_URL", "http://127.0.0.1:8050")
+BASE: Final[str] = os.getenv("CREDIT_URL", "https://127.0.0.1:8050")
 TIMEOUT: Final[int] = 5
 
 

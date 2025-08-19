@@ -23,13 +23,14 @@ spec:
         ports:
         - containerPort: {{ .Values.bank_connector.port }}
         - containerPort: 8001
-        command: ["uvicorn", "bank_connector.main:app", "--host", "0.0.0.0", "--port", "{{ .Values.bank_connector.port }}"]
+        command: ["uvicorn", "bank_connector.main:app", "--host", "0.0.0.0", "--port", "{{ .Values.bank_connector.port }}", "--ssl-certfile", "/certs/server.pem", "--ssl-keyfile", "/certs/server.key"]
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: bank-connector
 spec:
+  type: ClusterIP
   ports:
   - port: {{ .Values.bank_connector.port }}
     targetPort: {{ .Values.bank_connector.port }}

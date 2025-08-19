@@ -84,12 +84,12 @@ services:
       BANK_API_URL: http://mock_bank:8080/post
       BANK_RAILS_ENABLED: "1"
       BANK_RAILS_URL: http://mock_bank:8080/post
-    ports: ["8080:8080"]
-    command: uvicorn bank_connector.main:app --host 0.0.0.0 --port 8080
+    ports: ["127.0.0.1:8080:8080"]
+    command: uvicorn bank_connector.main:app --host 0.0.0.0 --port 8080 --ssl-certfile /certs/server.pem --ssl-keyfile /certs/server.key
     healthcheck:
       test:
         - CMD-SHELL
-        - python -c "import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=5).getcode()==200 else sys.exit(1)"
+        - python -c "import ssl,urllib.request,sys;ctx=ssl.create_default_context(cafile='/certs/server.pem');sys.exit(0) if urllib.request.urlopen('https://127.0.0.1:8080/healthz',context=ctx,timeout=5).getcode()==200 else sys.exit(1)"
       interval: 10s
       timeout: 5s
       retries: 10
@@ -109,13 +109,13 @@ services:
       KAFKA_BOOTSTRAP: redpanda:9092
       ASSET_DB_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
     ports:
-      - "9000:8000"
-      - "8002:8001"
-    command: uvicorn asset_aggregator.api:app --host 0.0.0.0 --port 8000
+      - "127.0.0.1:9000:8000"
+      - "127.0.0.1:8002:8001"
+    command: uvicorn asset_aggregator.api:app --host 0.0.0.0 --port 8000 --ssl-certfile /certs/server.pem --ssl-keyfile /certs/server.key
     healthcheck:
       test:
         - CMD-SHELL
-        - python -c "import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://127.0.0.1:8000/readyz', timeout=7).getcode()==200 else sys.exit(1)"
+        - python -c "import ssl,urllib.request,sys;ctx=ssl.create_default_context(cafile='/certs/server.pem');sys.exit(0) if urllib.request.urlopen('https://127.0.0.1:8000/readyz',context=ctx,timeout=7).getcode()==200 else sys.exit(1)"
       interval: 10s
       timeout: 7s
       retries: 12
@@ -137,12 +137,12 @@ services:
       QUANT_DRY_RUN: "1"
     volumes:
       - quantdata:/data
-    ports: ["9100:8000"]
-    command: uvicorn quantengine.main:app --host 0.0.0.0 --port 8000
+    ports: ["127.0.0.1:9100:8000"]
+    command: uvicorn quantengine.main:app --host 0.0.0.0 --port 8000 --ssl-certfile /certs/server.pem --ssl-keyfile /certs/server.key
     healthcheck:
       test:
         - CMD-SHELL
-        - python -c "import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://127.0.0.1:8000/readyz', timeout=7).getcode()==200 else sys.exit(1)"
+        - python -c "import ssl,urllib.request,sys;ctx=ssl.create_default_context(cafile='/certs/server.pem');sys.exit(0) if urllib.request.urlopen('https://127.0.0.1:8000/readyz',context=ctx,timeout=7).getcode()==200 else sys.exit(1)"
       interval: 10s
       timeout: 7s
       retries: 12
@@ -159,12 +159,12 @@ services:
     environment:
       ASSET_DB_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
     ports:
-      - "8050:8050"
-    command: uvicorn credit_facility.api:create_app --host 0.0.0.0 --port 8050
+      - "127.0.0.1:8050:8050"
+    command: uvicorn credit_facility.api:create_app --host 0.0.0.0 --port 8050 --ssl-certfile /certs/server.pem --ssl-keyfile /certs/server.key
     healthcheck:
       test:
         - CMD-SHELL
-        - python -c "import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://127.0.0.1:8050/healthz', timeout=5).getcode()==200 else sys.exit(1)"
+        - python -c "import ssl,urllib.request,sys;ctx=ssl.create_default_context(cafile='/certs/server.pem');sys.exit(0) if urllib.request.urlopen('https://127.0.0.1:8050/healthz',context=ctx,timeout=5).getcode()==200 else sys.exit(1)"
       interval: 10s
       timeout: 5s
       retries: 10

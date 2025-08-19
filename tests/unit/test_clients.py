@@ -9,6 +9,6 @@ except Exception:  # pragma: no cover - SDK missing
 
 @pytest.mark.skipif(ApiClient is None, reason="openapi_client package missing")
 def test_client_imports():
-    cfg = Configuration(host="http://localhost:9999")
+    cfg = Configuration(host="https://localhost:9999")
     api = DefaultApi(ApiClient(cfg))
     assert hasattr(api, "create_account")

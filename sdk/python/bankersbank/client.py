@@ -20,9 +20,10 @@ def _use_mock() -> bool:
 
 
 class BankersBankClient:
-    def __init__(self, base_url, token=None):
+    def __init__(self, base_url, token=None, verify: str | bool = True):
         self.base_url = base_url.rstrip("/")
         self.token = token
+        self.verify = verify
 
     def _headers(self):
         headers = {"Content-Type": "application/json"}
@@ -40,7 +41,8 @@ class BankersBankClient:
                 "corporate/channels/accounts/me/v1/accounts"
             )
         params = {"accountContext": account_context}
-        resp = requests.get(url, params=params, headers=self._headers())
+        kwargs = {"verify": self.verify} if self.verify is not True else {}
+        resp = requests.get(url, params=params, headers=self._headers(), **kwargs)
         print("Status:", resp.status_code)
         print("Content:", resp.text)
         resp.raise_for_status()
@@ -57,7 +59,8 @@ class BankersBankClient:
                 f"https://api.fusionfabric.cloud/corporate/channels/accounts/"
                 f"me/v1/accounts/{account_id}/balances"
             )
-        resp = requests.get(url, headers=self._headers())
+        kwargs = {"verify": self.verify} if self.verify is not True else {}
+        resp = requests.get(url, headers=self._headers(), **kwargs)
         print("Status:", resp.status_code)
         print("Content:", resp.text)
         resp.raise_for_status()
@@ -65,7 +68,8 @@ class BankersBankClient:
 
     def get_transactions(self, account_id):
         url = f"{self.base_url}/corporate/channels/accounts/me/v1/accounts/{account_id}/transactions"
-        resp = requests.get(url, headers=self._headers())
+        kwargs = {"verify": self.verify} if self.verify is not True else {}
+        resp = requests.get(url, headers=self._headers(), **kwargs)
         resp.raise_for_status()
         return resp.json()
 
@@ -80,7 +84,8 @@ class BankersBankClient:
             "currency": currency,
             "remittanceInformation": remittance,
         }
-        resp = requests.post(url, json=body, headers=self._headers())
+        kwargs = {"verify": self.verify} if self.verify is not True else {}
+        resp = requests.post(url, json=body, headers=self._headers(), **kwargs)
         resp.raise_for_status()
         return resp.json()
 

@@ -64,7 +64,7 @@ def test_balances_all_cases(account_id, token, query_params, expected_status, de
     Covers happy-path, negative, edge, and error simulation for /balances endpoint.
     Uses direct requests for full control over headers and query params.
     """
-    url = f"http://127.0.0.1:8000/corporate/channels/accounts/me/v1/accounts/{account_id}/balances"
+    url = f"https://127.0.0.1:8000/corporate/channels/accounts/me/v1/accounts/{account_id}/balances"
     headers = {"Authorization": token} if token is not None else {}
     resp = requests.get(url, headers=headers, params=query_params)
     if expected_status == 200:
@@ -85,7 +85,7 @@ def test_balances_minimal_and_maximal(account_id):
     """
     Edge: test balances for min/max values (simulate by checking all returned balances).
     """
-    url = f"http://127.0.0.1:8000/corporate/channels/accounts/me/v1/accounts/{account_id}/balances"
+    url = f"https://127.0.0.1:8000/corporate/channels/accounts/me/v1/accounts/{account_id}/balances"
     headers = {"Authorization": "Bearer dummy"}
     resp = requests.get(url, headers=headers)
     assert resp.status_code == 200
@@ -99,7 +99,7 @@ def test_balances_invalid_type():
     """
     Edge: invalid type for account_id (int instead of str).
     """
-    url = "http://127.0.0.1:8000/corporate/channels/accounts/me/v1/accounts/123456789/balances"
+    url = "https://127.0.0.1:8000/corporate/channels/accounts/me/v1/accounts/123456789/balances"
     headers = {"Authorization": "Bearer dummy"}
     # Should still work, as path param is coerced to str, but test for robustness
     resp = requests.get(url, headers=headers)
@@ -111,7 +111,7 @@ def test_balances_schema_regression():
     """
     Regression: ensure balances always include required fields and correct types.
     """
-    url = "http://127.0.0.1:8000/corporate/channels/accounts/me/v1/accounts/456783434/balances"
+    url = "https://127.0.0.1:8000/corporate/channels/accounts/me/v1/accounts/456783434/balances"
     headers = {"Authorization": "Bearer dummy"}
     resp = requests.get(url, headers=headers)
     assert resp.status_code == 200
@@ -122,7 +122,7 @@ def test_balances_schema_regression():
 
 @pytest.mark.skipif(not REQUESTS_AVAILABLE, reason="requests not installed")
 def test_accounts_and_collateral_flow():
-    client = FinastraAPIClient(token="dummy", base_url="http://127.0.0.1:8000")
+    client = FinastraAPIClient(token="dummy", base_url="https://127.0.0.1:8000")
     accounts = client.accounts_with_details("c123")
     assert accounts["items"]
     account_id = accounts["items"][0]["accountId"]
