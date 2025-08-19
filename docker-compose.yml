@@ -1,19 +1,21 @@
 # version key is obsolete in Compose v2; omit to silence warnings
+# Credentials loaded from `.env` (see `.env.example`)
 services:
   # ────────────────────────────────
   # Infra
   # ────────────────────────────────
   postgres:
     image: postgres:13
+    env_file: .env
     environment:
-      POSTGRES_USER: bank
-      POSTGRES_PASSWORD: bank
-      POSTGRES_DB: bank
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     ports: ["5432:5432"]
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U bank -d bank -h localhost || exit 1"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB} -h localhost || exit 1"]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -78,7 +80,7 @@ services:
       mock_bank:
         condition: service_started
     environment:
-      DATABASE_URL: postgresql://bank:bank@postgres:5432/bank
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       BANK_API_URL: http://mock_bank:8080/post
       BANK_RAILS_ENABLED: "1"
       BANK_RAILS_URL: http://mock_bank:8080/post
@@ -105,7 +107,7 @@ services:
         condition: service_healthy
     environment:
       KAFKA_BOOTSTRAP: redpanda:9092
-      ASSET_DB_URL: postgresql://bank:bank@postgres:5432/bank
+      ASSET_DB_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
     ports:
       - "9000:8000"
       - "8002:8001"
@@ -155,7 +157,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      ASSET_DB_URL: postgresql://bank:bank@postgres:5432/bank
+      ASSET_DB_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
     ports:
       - "8050:8050"
     command: uvicorn credit_facility.api:create_app --host 0.0.0.0 --port 8050
@@ -183,7 +185,7 @@ services:
     environment:
       REDIS_URL: redis://redis:6379/0
       QUANT_DB_URL: sqlite:////data/quant.db
-      ASSET_DB_URL: postgresql://bank:bank@postgres:5432/bank
+      ASSET_DB_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       KAFKA_BOOTSTRAP: redpanda:9092
     entrypoint: ["python", "-u", "-m", "quantengine.kafka_consumer"]
     command: ["redpanda:9092"]

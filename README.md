@@ -33,6 +33,18 @@ make gen-sdk
 
 ```
 
+### Configuration
+
+Copy `.env.example` to `.env` and set your database credentials. Docker Compose
+and the Helm chart reference these variables at runtime.
+
+```bash
+cp .env.example .env
+# edit as needed, then for Helm deployments:
+export $(grep -v '^#' .env | xargs)
+envsubst < kubernetes/helm/values.yaml | helm install bankers-bank kubernetes/helm -f -
+```
+
 ### Docker quick-start
 
 ```bash

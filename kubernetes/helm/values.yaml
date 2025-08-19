@@ -1,3 +1,4 @@
+# Values support envsubst; see `.env.example` for local configuration.
 bank_connector:
   image: bank_connector:latest
   port: 8080
@@ -13,9 +14,9 @@ quant_consumer:
 
 postgres:
   image: postgres:13
-  username: bank
-  password: bank
-  db: bank
+  username: ${POSTGRES_USER}
+  password: ${POSTGRES_PASSWORD}
+  db: ${POSTGRES_DB}
   port: 5432
 
 redpanda:
