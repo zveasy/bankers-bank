@@ -23,7 +23,7 @@ def reset_collateral_registry():
 
 @pytest.mark.skipif(not REQUESTS_AVAILABLE, reason="requests not installed")
 def test_calculate_ltv_integration():
-    client = BankersBankClient(base_url="http://127.0.0.1:8000", token="testtoken")
+    client = BankersBankClient(base_url="https://127.0.0.1:8000", token="testtoken")
     collateral = {
         "address": str(uuid.uuid4()),
         "valuation": 100000,
@@ -37,7 +37,7 @@ def test_calculate_ltv_integration():
 
 @pytest.mark.skipif(not REQUESTS_AVAILABLE, reason="requests not installed")
 def test_ltv_zero_collateral():
-    client = BankersBankClient(base_url="http://127.0.0.1:8000", token="testtoken")
+    client = BankersBankClient(base_url="https://127.0.0.1:8000", token="testtoken")
     # No collateral added for this test
     with pytest.raises(ValueError, match="Total collateral valuation is zero"):
         client.calculate_ltv("456783434")
@@ -45,7 +45,7 @@ def test_ltv_zero_collateral():
 
 @pytest.mark.skipif(not REQUESTS_AVAILABLE, reason="requests not installed")
 def test_ltv_no_booked_balance():
-    client = BankersBankClient(base_url="http://127.0.0.1:8000", token="testtoken")
+    client = BankersBankClient(base_url="https://127.0.0.1:8000", token="testtoken")
     # Add collateral so that only balance is missing
     collateral = {
         "address": str(uuid.uuid4()),
@@ -62,7 +62,7 @@ def test_ltv_no_booked_balance():
 
 @pytest.mark.skipif(not REQUESTS_AVAILABLE, reason="requests not installed")
 def test_ltv_multiple_collateral():
-    client = BankersBankClient(base_url="http://127.0.0.1:8000", token="testtoken")
+    client = BankersBankClient(base_url="https://127.0.0.1:8000", token="testtoken")
     collateral1 = {
         "address": str(uuid.uuid4()),
         "valuation": 100000,
@@ -84,7 +84,7 @@ def test_ltv_multiple_collateral():
 
 @pytest.mark.skipif(not REQUESTS_AVAILABLE, reason="requests not installed")
 def test_ltv_disputed_title():
-    client = BankersBankClient(base_url="http://127.0.0.1:8000", token="testtoken")
+    client = BankersBankClient(base_url="https://127.0.0.1:8000", token="testtoken")
     disputed_collateral = {
         "address": str(uuid.uuid4()),
         "valuation": 100000,

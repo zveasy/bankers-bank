@@ -4,8 +4,8 @@ import time
 
 import requests
 
-BANK = os.getenv("BANK_CONNECTOR_URL", "http://localhost:8003")
-AGGR = os.getenv("ASSET_AGGREGATOR_URL", "http://localhost:9000")
+BANK = os.getenv("BANK_CONNECTOR_URL", "https://localhost:8003")
+AGGR = os.getenv("ASSET_AGGREGATOR_URL", "https://localhost:9000")
 
 
 def wait_ready(url, tries=60, delay=2.0):

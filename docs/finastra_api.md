@@ -26,7 +26,7 @@ token = fetch_token("<client_id>", "<client_secret>")
 ```python
 from bankersbank.finastra import FinastraAPIClient
 
-client = FinastraAPIClient(token, base_url="http://127.0.0.1:8000")
+client = FinastraAPIClient(token, base_url="https://127.0.0.1:8000")
 accounts = client.accounts_with_details("c123")
 ```
 

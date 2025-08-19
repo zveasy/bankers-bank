@@ -36,11 +36,14 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 RUN useradd -m app && chown -R app:app /app
+COPY certs/dev.pem /certs/server.pem
+COPY certs/dev.key /certs/server.key
+RUN chown -R app:app /certs && chmod 644 /certs/server.pem && chmod 600 /certs/server.key
 USER app
 
 EXPOSE 8050
 
 HEALTHCHECK --interval=10s --timeout=5s --retries=10 --start-period=25s \
-  CMD python -c "import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://127.0.0.1:8050/healthz', timeout=5).getcode()==200 else sys.exit(1)"
+  CMD python -c "import sys, ssl, urllib.request;ctx=ssl.create_default_context(cafile='/certs/server.pem');\nimport urllib.error;\nsys.exit(0) if urllib.request.urlopen('https://127.0.0.1:8050/healthz', context=ctx, timeout=5).getcode()==200 else sys.exit(1)"
 
-CMD ["uvicorn","credit_facility.api:create_app","--host","0.0.0.0","--port","8050"]
+CMD ["uvicorn","credit_facility.api:create_app","--host","0.0.0.0","--port","8050","--ssl-certfile","/certs/server.pem","--ssl-keyfile","/certs/server.key"]

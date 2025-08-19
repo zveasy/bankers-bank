@@ -23,13 +23,14 @@ spec:
         ports:
         - containerPort: {{ .Values.treasury_orchestrator.port }}
         - containerPort: 8001
-        command: ["uvicorn", "asset_aggregator.api:app", "--host", "0.0.0.0", "--port", "{{ .Values.treasury_orchestrator.port }}"]
+        command: ["uvicorn", "asset_aggregator.api:app", "--host", "0.0.0.0", "--port", "{{ .Values.treasury_orchestrator.port }}", "--ssl-certfile", "/certs/server.pem", "--ssl-keyfile", "/certs/server.key"]
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: treasury-orchestrator
 spec:
+  type: ClusterIP
   ports:
   - port: {{ .Values.treasury_orchestrator.port }}
     targetPort: {{ .Values.treasury_orchestrator.port }}

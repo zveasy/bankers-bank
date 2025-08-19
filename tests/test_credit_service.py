@@ -26,7 +26,7 @@ def test_refresh_capacity(monkeypatch):
     monkeypatch.setattr(
         fin, "collaterals_for_account", lambda _: {"items": [{"valuation": 200000}]}
     )
-    jpm = JpmLiquidityClient("http://jpm", "id", "sec", "http://token")
+    jpm = JpmLiquidityClient("https://jpm", "id", "sec", "https://token")
 
     service = CreditFacilityService(fac, fin, jpm, session)
     asyncio.run(service.refresh_capacity())
@@ -54,7 +54,7 @@ def test_draw_creates_txn(monkeypatch):
 
     monkeypatch.setattr(httpx.AsyncClient, "post", AsyncMock(side_effect=fake_post))
 
-    jpm = JpmLiquidityClient("http://jpm", "id", "sec", "http://token")
+    jpm = JpmLiquidityClient("https://jpm", "id", "sec", "https://token")
     service = CreditFacilityService(fac, fin, jpm, session)
     asyncio.run(service.refresh_capacity())
     asyncio.run(service.draw(20000, "USD"))
