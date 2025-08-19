@@ -16,6 +16,8 @@ spec:
       - name: treasury-orchestrator
         image: {{ .Values.treasury_orchestrator.image }}
         envFrom:
+        - secretRef:
+            name: bankers-bank-secret
         - configMapRef:
             name: bankers-bank-env
         ports:
