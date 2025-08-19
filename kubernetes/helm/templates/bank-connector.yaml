@@ -16,6 +16,8 @@ spec:
       - name: bank-connector
         image: {{ .Values.bank_connector.image }}
         envFrom:
+        - secretRef:
+            name: bankers-bank-secret
         - configMapRef:
             name: bankers-bank-env
         ports:
