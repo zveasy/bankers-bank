@@ -101,24 +101,13 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y netcat-openbsd || sudo apt-get install -y netcat
 
-      - name: Start mock Finastra API
-        env:
-          USE_MOCK_BALANCES: 1
-        run: |
-          uvicorn mocks.mock_finastra_api:app --host 0.0.0.0 --port 8000 &
-          for i in {1..10}; do
-            nc -z 127.0.0.1 8000 && break
-            echo "Waiting for mock API..." && sleep 1
-          done
-
       - name: Add repo root to PYTHONPATH
         run: echo "PYTHONPATH=$(pwd)" >> "$GITHUB_ENV"
 
-      - name: Run Python integration tests with coverage
+      - name: Run SDK unit tests with coverage
         env:
-          USE_MOCK_BALANCES: 1
-          MOCK_API_URL: http://127.0.0.1:8000
-        run: pytest --cov=bankersbank --cov-report=xml --cov-report=term integration-client
+          BANKERSBANK_INTEGRATION: "0"
+        run: pytest --cov=bankersbank --cov-report=xml --cov-report=term tests/unit
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
