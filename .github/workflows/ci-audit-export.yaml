@@ -21,6 +21,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: "Guard: no .env committed"
+        run: |
+          set -euo pipefail
+          git ls-files -z | grep -zE '(^|/)\.env(\..*)?$' | tr -d '\0' | \
+            grep -v '\.env\.example$' && {
+              echo "::error::.env files must not be committed"; exit 1; } || true
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
