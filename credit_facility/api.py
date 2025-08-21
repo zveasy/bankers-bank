@@ -9,6 +9,7 @@ from datetime import datetime
 from typing import Dict, List, Optional
 
 from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, status
+from common.auth import require_token
 from prometheus_client import make_asgi_app
 from pydantic import BaseModel, Field
 from sqlmodel import Session, select
@@ -118,6 +119,7 @@ async def draw_funds(
     idempotency_key: str = Header(..., alias="Idempotency-Key"),
     session: Session = Depends(get_session),
     provider: CreditProvider = Depends(get_provider),
+    _: None = Depends(require_token),
 ):
     svc = CreditFacilityService(session)
 
@@ -204,6 +206,7 @@ async def repay_funds(
     idempotency_key: str = Header(..., alias="Idempotency-Key"),
     session: Session = Depends(get_session),
     provider: CreditProvider = Depends(get_provider),
+    _: None = Depends(require_token),
 ):
     svc = CreditFacilityService(session)
 
@@ -272,7 +275,9 @@ async def repay_funds(
 
 
 @router.get("/{bank_id}/status", response_model=StatusResponse)
-async def facility_status(bank_id: str, session: Session = Depends(get_session)):
+async def facility_status(
+    bank_id: str, session: Session = Depends(get_session), _: None = Depends(require_token)
+):
     svc = CreditFacilityService(session)
     available = svc.capacity(bank_id)
     outstanding = svc._outstanding(bank_id)  # type: ignore[attr-defined]
@@ -324,7 +329,7 @@ def create_app() -> FastAPI:  # pragma: no cover
         app.mount("/metrics", make_asgi_app())
 
     @app.get("/healthz", tags=["health"])
-    async def healthz():
+    async def healthz(_: None = Depends(require_token)):
         return {"ok": True}
 
     # ensure tables exist on boot (safe idempotent)
