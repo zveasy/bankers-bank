@@ -31,9 +31,12 @@ RUN pip install --no-cache-dir -r /tmp/requirements.txt \
 
 COPY . .
 EXPOSE 8080 8001
+COPY certs/dev.pem /certs/server.pem
+COPY certs/dev.key /certs/server.key
+RUN chown -R root:root /certs && chmod 644 /certs/server.pem && chmod 600 /certs/server.key
 
 # Simple container-level healthcheck
-HEALTHCHECK CMD curl -f http://localhost:8080/healthz || exit 1
+HEALTHCHECK CMD curl --fail --cacert /certs/server.pem https://localhost:8080/healthz || exit 1
 RUN useradd -m app || true
 USER app
-CMD ["uvicorn", "bank_connector.main:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["uvicorn", "bank_connector.main:app", "--host", "0.0.0.0", "--port", "8080", "--ssl-certfile", "/certs/server.pem", "--ssl-keyfile", "/certs/server.key"]

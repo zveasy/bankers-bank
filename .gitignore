@@ -1,5 +1,4 @@
 # Certificates & local env
-certs/
 .env.development
 
 # Python

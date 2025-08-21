@@ -29,7 +29,7 @@ def _patch_httpx_success():
 
 def main() -> int:
     os.environ.setdefault("BANK_RAILS_ENABLED", "1")
-    os.environ.setdefault("BANK_RAILS_URL", "http://rails.test")
+    os.environ.setdefault("BANK_RAILS_URL", "https://rails.test")
 
     _patch_httpx_success()
 

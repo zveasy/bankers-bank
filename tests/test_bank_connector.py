@@ -12,7 +12,7 @@ if HTTPX_AVAILABLE:
 
     @pytest.mark.enable_socket
     def test_post_sweep_order(requests_mock):
-        requests_mock.post("http://localhost:8000", text="<ok/>")
+        requests_mock.post("https://localhost:8000", text="<ok/>")
         client = TestClient(app)
         payload = {
             "order_id": "123",
@@ -29,7 +29,7 @@ if HTTPX_AVAILABLE:
     @pytest.mark.enable_socket
     def test_payment_status(requests_mock):
         xml = "<pain.002></pain.002>"
-        requests_mock.post("http://localhost:8000", text="<ok/>")
+        requests_mock.post("https://localhost:8000", text="<ok/>")
         client = TestClient(app)
         client.post(
             "/sweep-order",

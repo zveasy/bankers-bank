@@ -17,8 +17,8 @@ from treasury_observability.metrics import (recon_anomalies_total,
 
 from .db import AssetSnapshot, LTVHistory, engine, upsert_assetsnapshot
 
-BALANCES_URL = os.getenv("BALANCES_URL", "http://localhost:9000/balances")
-COLLATERAL_URL = os.getenv("COLLATERAL_URL", "http://localhost:9000/collateral")
+BALANCES_URL = os.getenv("BALANCES_URL", "https://localhost:9000/balances")
+COLLATERAL_URL = os.getenv("COLLATERAL_URL", "https://localhost:9000/collateral")
 KAFKA_BOOTSTRAP = os.getenv("KAFKA_BOOTSTRAP", "localhost:9092")
 KAFKA_TOPIC = os.getenv("ASSET_TOPIC", "asset_snapshots")
 
@@ -26,7 +26,7 @@ KAFKA_TOPIC = os.getenv("ASSET_TOPIC", "asset_snapshots")
 async def balances_puller(bank_id: str) -> Dict[str, Any]:
     """Fetch balances for the given bank id."""
     url = f"{BALANCES_URL}/{bank_id}"
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(verify=os.getenv("CA_CERT", True)) as client:
         try:
             resp = await client.get(url, timeout=5)
             resp.raise_for_status()
@@ -38,7 +38,7 @@ async def balances_puller(bank_id: str) -> Dict[str, Any]:
 async def collateral_puller(bank_id: str) -> Dict[str, Any]:
     """Fetch collateral data for the given bank id."""
     url = f"{COLLATERAL_URL}/{bank_id}"
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(verify=os.getenv("CA_CERT", True)) as client:
         try:
             resp = await client.get(url, timeout=5)
             resp.raise_for_status()

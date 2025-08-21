@@ -13,7 +13,7 @@ from bankersbank.client import BankersBankClient
 
 pytestmark = pytest.mark.skipif(not REQUESTS_AVAILABLE, reason="requests not installed")
 
-client = BankersBankClient(base_url="http://127.0.0.1:8000", token="testtoken")
+client = BankersBankClient(base_url="https://127.0.0.1:8000", token="testtoken")
 
 
 @pytest.fixture(autouse=True)

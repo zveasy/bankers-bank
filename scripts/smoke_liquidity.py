@@ -1,7 +1,7 @@
 """Quick smoke test for Quantengine liquidity endpoints.
 
 This script assumes the quantengine service is running locally (docker compose)
-and reachable at http://127.0.0.1:9100.
+and reachable at https://127.0.0.1:9100.
 """
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from typing import Final
 
 import requests
 
-BASE: Final[str] = os.getenv("QUANT_URL", "http://127.0.0.1:8000")
+BASE: Final[str] = os.getenv("QUANT_URL", "https://127.0.0.1:8000")
 TIMEOUT: Final[int] = 5
 
 

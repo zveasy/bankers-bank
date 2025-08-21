@@ -23,7 +23,9 @@ import os
 import sys
 from pathlib import Path
 
-# Ensure repository root on sys.path for local execution
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from credit_facility.sa_compat import apply as _apply_sa_compat

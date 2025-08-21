@@ -3,7 +3,7 @@ from bankersbank.client import BankersBankClient
 
 
 class DummyClient(BankersBankClient):
-    base_url = "http://dummy"  # Add base_url to avoid AttributeError
+    base_url = "https://dummy"  # Add base_url to avoid AttributeError
 
     def __init__(self):
         self.token = None  # Add token to avoid AttributeError

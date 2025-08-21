@@ -52,8 +52,8 @@ envsubst < kubernetes/helm/values.yaml | helm install bankers-bank kubernetes/he
 docker compose up --build -d
 
 # Open service docs (Windows `start` opens default browser)
-start http://localhost:8003/docs  # Bank Connector
-start http://localhost:9000/docs  # Asset Aggregator
+start https://localhost:8003/docs  # Bank Connector
+start https://localhost:9000/docs  # Asset Aggregator
 
 # stop and remove containers, networks, volumes
 docker compose down -v
@@ -80,8 +80,8 @@ avoid exposing dashboards beyond internal networks.
 ### Health & smoke
 
 - Health endpoints:
-  - Bank-Connector: `GET http://localhost:8003/healthz`
-  - Asset-Aggregator: `GET http://localhost:9000/healthz`
+  - Bank-Connector: `GET https://localhost:8003/healthz`
+  - Asset-Aggregator: `GET https://localhost:9000/healthz`
 
 - Smoke test:
   ```bash

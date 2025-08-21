@@ -35,7 +35,7 @@ def _scrape_value(text: str, metric_name: str) -> float:
 @pytest.fixture(autouse=True)
 def _rails_env(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("BANK_RAILS_ENABLED", "1")
-    monkeypatch.setenv("BANK_RAILS_URL", "http://rails.test")
+    monkeypatch.setenv("BANK_RAILS_URL", "https://rails.test")
     yield
 
 
@@ -121,7 +121,7 @@ def test_dlq_drains_after_retry(monkeypatch):
             super().__init__(*a, **kw)
 
     monkeypatch.setenv("BANK_RAILS_ENABLED", "1")
-    monkeypatch.setenv("BANK_RAILS_URL", "http://rails.test")
+    monkeypatch.setenv("BANK_RAILS_URL", "https://rails.test")
     monkeypatch.setattr(httpx, "AsyncClient", Patched, raising=True)
     monkeypatch.setattr(bc.httpx, "AsyncClient", Patched, raising=True)
 

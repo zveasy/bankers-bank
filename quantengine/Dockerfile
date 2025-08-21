@@ -43,11 +43,14 @@ COPY . .
 RUN useradd -m app \
     && mkdir -p /data \
     && chown -R app:app /app /data
+COPY certs/dev.pem /certs/server.pem
+COPY certs/dev.key /certs/server.key
+RUN chown -R app:app /certs && chmod 644 /certs/server.pem && chmod 600 /certs/server.key
 USER app
 
 EXPOSE 8000
 
 # Healthcheck probes /healthz
-HEALTHCHECK --interval=10s --timeout=5s --start-period=25s --retries=12 CMD python -c "import sys, urllib.request, urllib.error;\n\ntry:\n    with urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=5) as r:\n        sys.exit(0 if r.getcode() == 200 else 1)\nexcept Exception:\n    sys.exit(1)"
+HEALTHCHECK --interval=10s --timeout=5s --start-period=25s --retries=12 CMD python -c "import sys, ssl, urllib.request;\nctx=ssl.create_default_context(cafile='/certs/server.pem');\nimport urllib.error;\ntry:\n    with urllib.request.urlopen('https://127.0.0.1:8000/healthz', context=ctx, timeout=5) as r:\n        sys.exit(0 if r.getcode() == 200 else 1)\nexcept Exception:\n    sys.exit(1)"
 
-CMD ["uvicorn", "quantengine.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "quantengine.main:app", "--host", "0.0.0.0", "--port", "8000", "--ssl-certfile", "/certs/server.pem", "--ssl-keyfile", "/certs/server.key"]

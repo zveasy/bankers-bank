@@ -21,7 +21,7 @@ python -m integration-client.test_negative_cases
 
 ## Base URL
 
-<http://127.0.0.1:8000>
+<https://127.0.0.1:8000>
 
 ---
 
@@ -267,7 +267,7 @@ collateral to compute the ratio.
 ```python
 from bankersbank.client import BankersBankClient
 
-client = BankersBankClient(base_url="http://127.0.0.1:8000", token="token")
+client = BankersBankClient(base_url="https://127.0.0.1:8000", token="token")
 ltv = client.calculate_ltv("456783434")
 print(ltv)
 ```

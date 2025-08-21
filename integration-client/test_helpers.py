@@ -15,4 +15,4 @@ except ImportError:
 
 
 def clear_collateral_registry():
-    requests.post("http://127.0.0.1:8000/collateral/reset")
+    requests.post("https://127.0.0.1:8000/collateral/reset")
