@@ -13,6 +13,7 @@ from typing import Deque, Optional, TypedDict
 
 import httpx
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from common.auth import require_token
 from fastapi.responses import JSONResponse
 from prometheus_client import make_asgi_app
 from sqlmodel import Session, select
@@ -124,7 +125,7 @@ async def _start_worker() -> None:
 
 
 @app.get("/healthz")
-async def healthz():
+async def healthz(_: None = Depends(require_token)):
     return {"ok": True}
 
 
@@ -138,6 +139,7 @@ async def create_sweep_order(
     payload: SweepOrderRequest,
     session: Session = Depends(get_session),
     idempotency_key: Optional[str] = Header(default=None, alias="Idempotency-Key"),
+    _: None = Depends(require_token),
 ):
     idem = idempotency_key or str(uuid.uuid4())
     # persist (idempotent upsert by order_id)
@@ -246,6 +248,7 @@ async def create_sweep_order(
 async def payment_status(
     request: Request,
     session: Session = Depends(get_session),
+    _: None = Depends(require_token),
 ):
     xml_bytes = await request.body()
     raw_status = parse_pain002(xml_bytes.decode("utf-8"))  # PaymentStatus enum or raw
@@ -271,13 +274,15 @@ async def payment_status(
 
 
 @app.get("/healthz")
-async def healthz():
+async def healthz(_: None = Depends(require_token)):
     return {"ok": True}
 
 
 @app.post("/sweep-order")
 async def create_sweep_order(
-    payload: SweepOrderRequest, session: Session = Depends(get_session)
+    payload: SweepOrderRequest,
+    session: Session = Depends(get_session),
+    _: None = Depends(require_token),
 ):
     # xml = create_pain_001(
     #     payload.order_id, payload.amount, payload.currency, payload.debtor, payload.creditor
@@ -307,7 +312,9 @@ async def create_sweep_order(
 
 @app.post("/payment-status")
 async def payment_status(
-    request: Request, session: Session = Depends(get_session)
+    request: Request,
+    session: Session = Depends(get_session),
+    _: None = Depends(require_token),
 ) -> PaymentStatusResponse:
     xml = await request.body()
     # status = parse_pain_002(xml.decode())
