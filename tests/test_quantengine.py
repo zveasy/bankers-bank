@@ -90,7 +90,11 @@ def test_process_message_updates_redis():
 def test_investable_cash_endpoint_reads_redis(tmp_path):
     client = TestClient(app)
     redis_client.set("cash_available:b2", 70)
-    resp = client.get("/investable-cash", params={"bank_id": "b2"})
+    resp = client.get(
+        "/investable-cash",
+        params={"bank_id": "b2"},
+        headers={"Authorization": "Bearer testtoken"},
+    )
     assert resp.status_code == 200
     assert resp.json() == {"cash": 70.0}
 
@@ -101,6 +105,16 @@ def test_investable_cash_fallback_db(monkeypatch):
     with Session(engine) as session:
         session.add(CashPosition(bank_id="b3", cash=99.9))
         session.commit()
-    resp = client.get("/investable-cash", params={"bank_id": "b3"})
+    resp = client.get(
+        "/investable-cash",
+        params={"bank_id": "b3"},
+        headers={"Authorization": "Bearer testtoken"},
+    )
     assert resp.status_code == 200
     assert resp.json() == {"cash": 99.9}
+
+
+def test_investable_cash_unauthorized():
+    client = TestClient(app)
+    r = client.get("/investable-cash", params={"bank_id": "b2"})
+    assert r.status_code == 401

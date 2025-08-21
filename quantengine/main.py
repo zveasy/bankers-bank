@@ -4,6 +4,7 @@ configure_logging(os.getenv("LOG_FORMAT", "json"), service_name="quantengine")
 
 import redis
 from fastapi import Depends, FastAPI, HTTPException
+from common.auth import require_token
 from prometheus_client import make_asgi_app
 from sqlmodel import Session
 
@@ -46,7 +47,7 @@ app.mount("/metrics", make_asgi_app())
 
 
 @app.get("/healthz")
-def healthz():
+def healthz(_: None = Depends(require_token)):
     """Simple Redis liveness probe used by the container healthcheck."""
     try:
         redis_client.ping()
@@ -56,7 +57,7 @@ def healthz():
 
 
 @app.get("/readyz")
-def readyz():
+def readyz(_: None = Depends(require_token)):
     """Readiness probe: ensure DB writable by acquiring write lock."""
     from .db import engine  # local import to avoid circular
 
@@ -70,7 +71,11 @@ def readyz():
 
 
 @app.get("/investable-cash")
-def investable_cash(bank_id: str, session: Session = Depends(get_session)):
+def investable_cash(
+    bank_id: str,
+    session: Session = Depends(get_session),
+    _: None = Depends(require_token),
+):
     """
     Return investable cash for a bank.
     - Prefer Redis cache; fall back to the quant DB.
