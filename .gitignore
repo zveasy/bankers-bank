@@ -12,6 +12,8 @@ env/
 venv/
 .venv/
 .env
+.env.*
+!.env.example
 .pytest_cache/
 .coverage
 .tox/

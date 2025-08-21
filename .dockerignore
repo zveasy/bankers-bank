@@ -14,6 +14,10 @@ tests/
 integration_client/
 integration-client/
 
+.env
+.env.*
+!.env.example
+
 # local tooling / caches
 *.log
 *.swp
