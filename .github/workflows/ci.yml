@@ -161,6 +161,7 @@ jobs:
   # Run credit smoke test with docker compose
   # ────────────────────────────────
   compose-smoke-credit:
+    if: "${{ secrets.POSTGRES_USER != '' }}"
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -285,6 +286,7 @@ jobs:
   # Payments stack smoke with rails
   # ────────────────────────────────
   compose-smoke-payments:
+    if: "${{ secrets.POSTGRES_USER != '' }}"
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -398,6 +400,7 @@ jobs:
   # Liquidity stack smoke with quantengine
   # ────────────────────────────────
   compose-smoke-liquidity:
+    if: "${{ secrets.POSTGRES_USER != '' }}"
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
