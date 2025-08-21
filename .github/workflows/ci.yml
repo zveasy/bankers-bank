@@ -205,7 +205,7 @@ jobs:
           GF_ADMIN_PASSWORD: ${{ secrets.GF_ADMIN_PASSWORD }}
         run: |
           umask 077
-          cat > .env.ci <<'EOF'
+          cat > .env <<EOF
           POSTGRES_USER=$POSTGRES_USER
           POSTGRES_PASSWORD=$POSTGRES_PASSWORD
           POSTGRES_DB=$POSTGRES_DB
@@ -217,10 +217,18 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Build images
-        run: docker compose --env-file .env.ci build credit_facility
+        run: |
+          set -a
+          source .env
+          set +a
+          docker compose --env-file .env build credit_facility
 
       - name: Start stack (postgres + credit_facility)
-        run: docker compose --env-file .env.ci up -d postgres credit_facility
+        run: |
+          set -a
+          source .env
+          set +a
+          docker compose --env-file .env up -d postgres credit_facility
 
       - name: Wait for health
         run: |
@@ -256,7 +264,11 @@ jobs:
 
       - name: Dump logs on failure
         if: failure()
-        run: docker compose logs --no-color > compose-credit-logs.txt
+        run: |
+          set -a
+          source .env
+          set +a
+          docker compose --env-file .env logs --no-color > compose-credit-logs.txt
 
       - uses: actions/upload-artifact@v4
         if: failure()
@@ -304,17 +316,25 @@ jobs:
           POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
         run: |
           umask 077
-          cat > .env.ci <<'EOF'
+          cat > .env <<EOF
           POSTGRES_USER=$POSTGRES_USER
           POSTGRES_PASSWORD=$POSTGRES_PASSWORD
           POSTGRES_DB=$POSTGRES_DB
           EOF
 
       - name: Build images
-        run: docker compose --env-file .env.ci build bank_connector
+        run: |
+          set -a
+          source .env
+          set +a
+          docker compose --env-file .env build bank_connector
 
       - name: Start stack (postgres + mock_bank + bank_connector)
-        run: docker compose --env-file .env.ci up -d postgres mock_bank bank_connector
+        run: |
+          set -a
+          source .env
+          set +a
+          docker compose --env-file .env up -d postgres mock_bank bank_connector
 
       - name: Wait for health
         run: |
@@ -349,19 +369,24 @@ jobs:
           BANK_API_URL: http://127.0.0.1:8080/post
         run: python scripts/smoke_payments.py
 
-      - name: Cleanup env file
-        if: always()
-        run: rm -f .env.ci
 
       - name: Dump logs on failure
         if: failure()
-        run: docker compose logs --no-color > compose-payments-logs.txt
+        run: |
+          set -a
+          source .env
+          set +a
+          docker compose --env-file .env logs --no-color > compose-payments-logs.txt
 
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: compose-payments-logs
           path: compose-payments-logs.txt
+
+      - name: Cleanup env file
+        if: always()
+        run: rm -f .env .env.ci
 
       
   # ────────────────────────────────
@@ -400,20 +425,28 @@ jobs:
           POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
         run: |
           umask 077
-          cat > .env.ci <<'EOF'
+          cat > .env <<EOF
           POSTGRES_USER=$POSTGRES_USER
           POSTGRES_PASSWORD=$POSTGRES_PASSWORD
           POSTGRES_DB=$POSTGRES_DB
           EOF
 
       - name: Build quantengine
-        run: docker compose --env-file .env.ci build quantengine
+        run: |
+          set -a
+          source .env
+          set +a
+          docker compose --env-file .env build quantengine
 
       - name: Start quantengine only
         env:
           QUANT_DRY_RUN: "1"
           QUANT_CIRCUIT_OPEN: "0"
-        run: docker compose --env-file .env.ci up -d quantengine
+        run: |
+          set -a
+          source .env
+          set +a
+          docker compose --env-file .env up -d quantengine
 
       - name: Wait for health
         run: |
@@ -447,19 +480,24 @@ jobs:
           QUANT_URL: http://127.0.0.1:9100
         run: python scripts/smoke_liquidity.py
 
-      - name: Cleanup env file
-        if: always()
-        run: rm -f .env.ci
 
       - name: Dump logs on failure
         if: failure()
-        run: docker compose logs --no-color > compose-liquidity-logs.txt
+        run: |
+          set -a
+          source .env
+          set +a
+          docker compose --env-file .env logs --no-color > compose-liquidity-logs.txt
 
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: compose-liquidity-logs
           path: compose-liquidity-logs.txt
+
+      - name: Cleanup env file
+        if: always()
+        run: rm -f .env .env.ci
 
       
       - name: Teardown
