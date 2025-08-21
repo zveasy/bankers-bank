@@ -64,7 +64,11 @@ def test_evaluate_happy_path(client: TestClient):
         },
     }
 
-    resp = client.post("/liquidity/evaluate", json=payload)
+    resp = client.post(
+        "/liquidity/evaluate",
+        json=payload,
+        headers={"Authorization": "Bearer testtoken"},
+    )
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert set(body.keys()) >= {"ok", "reasons", "allowed_draw_usd", "buffer_usd"}
@@ -89,7 +93,11 @@ def test_evaluate_violation_records_counter(client: TestClient):
         },
     }
 
-    resp = client.post("/liquidity/evaluate", json=payload)
+    resp = client.post(
+        "/liquidity/evaluate",
+        json=payload,
+        headers={"Authorization": "Bearer testtoken"},
+    )
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body["ok"] is False
@@ -97,6 +105,17 @@ def test_evaluate_violation_records_counter(client: TestClient):
 
     m_text = _metrics_text(client)
     assert "policy_violations_total" in m_text
+
+
+def test_evaluate_unauthorized(client: TestClient):
+    payload = {
+        "bank_id": "bX",
+        "available_cash_usd": 1.0,
+        "asof_ts": "2025-08-06T10:37:01Z",
+        "policy": {"min_cash_bps": 0, "max_draw_bps": 10000, "settlement_calendar": []},
+    }
+    r = client.post("/liquidity/evaluate", json=payload)
+    assert r.status_code == 401
 
 
 # ---------------------------------------------------------------------------
@@ -115,7 +134,11 @@ def test_publish_dry_run_increments_metrics(
         "reserved_buffer_usd": 25_000.0,
         "notes": "unit-test",
     }
-    resp = client.post("/bridge/publish", json=payload)
+    resp = client.post(
+        "/bridge/publish",
+        json=payload,
+        headers={"Authorization": "Bearer testtoken"},
+    )
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body.get("ok") is True
@@ -125,3 +148,14 @@ def test_publish_dry_run_increments_metrics(
     m_text = _metrics_text(client)
     assert "quant_publish_total" in m_text
     assert "quant_publish_latency_seconds" in m_text
+
+
+def test_publish_unauthorized(client: TestClient):
+    payload = {
+        "bank_id": "bX",
+        "asof_ts": "2025-08-06T10:37:01Z",
+        "available_cash_usd": 1.0,
+        "reserved_buffer_usd": 0.0,
+    }
+    r = client.post("/bridge/publish", json=payload)
+    assert r.status_code == 401

@@ -8,6 +8,8 @@ from fastapi.testclient import TestClient
 # service under test
 import bank_connector.main as bc
 
+AUTH = {"Authorization": "Bearer testtoken"}
+
 
 def _patch_async_client(monkeypatch: pytest.MonkeyPatch, status_code: int):
     """Patch httpx.AsyncClient so all outbound posts return the given status code."""
@@ -54,7 +56,7 @@ def _payload(order_id: str = "ORD-1"):
 def test_sweep_success_emits_metrics(monkeypatch: pytest.MonkeyPatch):
     _patch_async_client(monkeypatch, 200)
     client = _client()
-    res = client.post("/sweep-order", json=_payload("OK-1"))
+    res = client.post("/sweep-order", json=_payload("OK-1"), headers=AUTH)
     assert res.status_code == 200
     metrics = client.get("/metrics").text
     assert "rails_post_total" in metrics  # sample exists once counter incremented
@@ -63,7 +65,7 @@ def test_sweep_success_emits_metrics(monkeypatch: pytest.MonkeyPatch):
 def test_sweep_failure_goes_to_dlq(monkeypatch: pytest.MonkeyPatch):
     _patch_async_client(monkeypatch, 500)
     client = _client()
-    res = client.post("/sweep-order", json=_payload("FAIL-1"))
+    res = client.post("/sweep-order", json=_payload("FAIL-1"), headers=AUTH)
     assert res.status_code in (
         202,
         200,
@@ -75,7 +77,10 @@ def test_sweep_failure_goes_to_dlq(monkeypatch: pytest.MonkeyPatch):
 def test_payment_status_updates(monkeypatch: pytest.MonkeyPatch):
     _patch_async_client(monkeypatch, 200)
     client = _client()
-    assert client.post("/sweep-order", json=_payload("STAT-1")).status_code == 200
+    assert (
+        client.post("/sweep-order", json=_payload("STAT-1"), headers=AUTH).status_code
+        == 200
+    )
 
     pain002 = """
     <Document xmlns=\"urn:iso:std:iso:20022:tech:xsd:pain.002.001.03\">
@@ -91,7 +96,9 @@ def test_payment_status_updates(monkeypatch: pytest.MonkeyPatch):
     """.strip()
 
     r = client.post(
-        "/payment-status", data=pain002, headers={"Content-Type": "application/xml"}
+        "/payment-status",
+        data=pain002,
+        headers={"Content-Type": "application/xml", **AUTH},
     )
     assert r.status_code == 200
     assert "SETTLED" in r.text
@@ -119,7 +126,7 @@ def test_dlq_drains_after_retry(monkeypatch):
     monkeypatch.setattr(bc.httpx, "AsyncClient", Patched, raising=True)
 
     client = TestClient(bc.app)
-    resp = client.post("/sweep-order", json=_payload("DLQ-1"))
+    resp = client.post("/sweep-order", json=_payload("DLQ-1"), headers=AUTH)
     assert resp.status_code in (202, 200)
 
     # allow background worker time

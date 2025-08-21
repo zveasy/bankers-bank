@@ -54,6 +54,9 @@ def app_client():
     return TestClient(app), engine
 
 
+AUTH = {"Authorization": "Bearer testtoken"}
+
+
 def _seed_snapshot(session: Session, bank_id: str = "b1") -> None:
     snap = AssetSnapshot(
         bank_id=bank_id,
@@ -77,7 +80,7 @@ def test_draw_happy_path(app_client):
         _seed_snapshot(s)
     resp = client.post(
         "/api/credit/v1/draw",
-        headers={"Idempotency-Key": "idx1"},
+        headers={"Idempotency-Key": "idx1", **AUTH},
         json={"bank_id": "b1", "amount": 1000.0},
     )
     assert resp.status_code == 201, resp.text
@@ -92,8 +95,8 @@ def test_draw_idempotent(app_client):
         _seed_snapshot(s)
     payload = {"bank_id": "b1", "amount": 500.0}
     h = {"Idempotency-Key": "idem-1"}
-    first = client.post("/api/credit/v1/draw", headers=h, json=payload)
-    second = client.post("/api/credit/v1/draw", headers=h, json=payload)
+    first = client.post("/api/credit/v1/draw", headers={**h, **AUTH}, json=payload)
+    second = client.post("/api/credit/v1/draw", headers={**h, **AUTH}, json=payload)
     assert first.status_code == 201 and second.status_code == 201
     assert first.json()["provider_ref"] == second.json()["provider_ref"]
 
@@ -104,12 +107,12 @@ def test_repay_happy_path(app_client):
         _seed_snapshot(s)
     client.post(
         "/api/credit/v1/draw",
-        headers={"Idempotency-Key": "d2"},
+        headers={"Idempotency-Key": "d2", **AUTH},
         json={"bank_id": "b1", "amount": 200.0},
     )
     resp = client.post(
         "/api/credit/v1/repay",
-        headers={"Idempotency-Key": "r1"},
+        headers={"Idempotency-Key": "r1", **AUTH},
         json={"bank_id": "b1", "amount": 100.0},
     )
     assert resp.status_code == 201
@@ -122,16 +125,28 @@ def test_status_endpoint(app_client):
         _seed_snapshot(s)
     client.post(
         "/api/credit/v1/draw",
-        headers={"Idempotency-Key": "s1"},
+        headers={"Idempotency-Key": "s1", **AUTH},
         json={"bank_id": "b1", "amount": 110.0},
     )
     client.post(
         "/api/credit/v1/repay",
-        headers={"Idempotency-Key": "s2"},
+        headers={"Idempotency-Key": "s2", **AUTH},
         json={"bank_id": "b1", "amount": 10.0},
     )
-    r = client.get("/api/credit/v1/b1/status")
+    r = client.get("/api/credit/v1/b1/status", headers=AUTH)
     assert r.status_code == 200
     body = r.json()
     assert body["bank_id"] == "b1"
     assert len(body["last_actions"]) > 0
+
+
+def test_credit_draw_unauthorized(app_client):
+    client, engine = app_client
+    with Session(engine) as s:
+        _seed_snapshot(s)
+    resp = client.post(
+        "/api/credit/v1/draw",
+        headers={"Idempotency-Key": "z1"},
+        json={"bank_id": "b1", "amount": 100.0},
+    )
+    assert resp.status_code == 401
