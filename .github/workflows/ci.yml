@@ -158,12 +158,29 @@ jobs:
             check rules prometheus/alert_rules/observability.rules.yml
 
   # ────────────────────────────────
+  # Check required DB secrets present
+  # ────────────────────────────────
+  check-secrets:
+    runs-on: ubuntu-latest
+    outputs:
+      have_pg: ${{ steps.determine.outputs.have_pg }}
+    steps:
+      - id: determine
+        env:
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+        run: |
+          if [ -n "$POSTGRES_USER" ]; then
+            echo "have_pg=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "have_pg=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  # ────────────────────────────────
   # Run credit smoke test with docker compose
   # ────────────────────────────────
   compose-smoke-credit:
-    env:
-      POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
-    if: ${{ env.POSTGRES_USER != '' }}
+    needs: check-secrets
+    if: ${{ needs.check-secrets.outputs.have_pg == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -288,9 +305,8 @@ jobs:
   # Payments stack smoke with rails
   # ────────────────────────────────
   compose-smoke-payments:
-    env:
-      POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
-    if: ${{ env.POSTGRES_USER != '' }}
+    needs: check-secrets
+    if: ${{ needs.check-secrets.outputs.have_pg == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -404,9 +420,8 @@ jobs:
   # Liquidity stack smoke with quantengine
   # ────────────────────────────────
   compose-smoke-liquidity:
-    env:
-      POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
-    if: ${{ env.POSTGRES_USER != '' }}
+    needs: check-secrets
+    if: ${{ needs.check-secrets.outputs.have_pg == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
