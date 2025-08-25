@@ -19,6 +19,24 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Account'
+  /ltv/calculate:
+    post:
+      summary: Calculate Loan-to-Value (LTV) ratio
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LTVRequest'
+      responses:
+        "200":
+          description: LTV calculation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LTVResponse'
+        "400":
+          description: Invalid input
 components:
   schemas:
     NewAccount:
@@ -35,3 +53,21 @@ components:
           properties:
             id: { type: string, format: uuid }
             created_at: { type: string, format: date-time }
+    LTVRequest:
+      type: object
+      required:
+        - collateral_value
+        - loan_amount
+      properties:
+        collateral_value:
+          type: number
+          description: The value of the collateral asset
+        loan_amount:
+          type: number
+          description: The amount of the loan
+    LTVResponse:
+      type: object
+      properties:
+        ltv:
+          type: number
+          description: The calculated loan-to-value ratio

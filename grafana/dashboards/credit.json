@@ -1,0 +1,82 @@
+{
+  "uid": "credit-facility",
+  "title": "Credit Facility",
+  "tags": ["credit", "facility"],
+  "timezone": "",
+  "version": 1,
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "time": { "from": "now-12h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "DS_PROMETHEUS",
+        "type": "datasource",
+        "query": "prometheus",
+        "label": "Datasource",
+        "refresh": 1
+      },
+      {
+        "name": "bank",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "label": "Bank",
+        "query": "label_values(credit_capacity_available, bank_id)",
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "refresh": 2
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Capacity Available (USD)",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 7 },
+      "fieldConfig": { "defaults": { "unit": "currencyUSD" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "credit_capacity_available{bank_id=~\"$bank\"}" }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Outstanding (USD)",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 7 },
+      "fieldConfig": { "defaults": { "unit": "currencyUSD" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "credit_outstanding_total{bank_id=~\"$bank\"}" }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Credit Actions /s (by action, result)",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "x": 0, "y": 7, "w": 18, "h": 7 },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (action,result)(rate(credit_actions_total{bank_id=~\"$bank\"}[5m]))"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Current Capacity (Latest)",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "x": 18, "y": 7, "w": 6, "h": 7 },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "fieldConfig": { "defaults": { "unit": "currencyUSD" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "sum(credit_capacity_available{bank_id=~\"$bank\"})" }
+      ]
+    }
+  ]
+}

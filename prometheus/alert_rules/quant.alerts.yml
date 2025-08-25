@@ -1,0 +1,23 @@
+groups:
+- name: quant_consumer_alerts
+  rules:
+  - alert: QuantConsumerDown
+    expr: up{job="services", instance="quant_consumer:8001"} == 0
+    for: 1m
+    labels: {severity: critical}
+    annotations:
+      summary: "quant_consumer is down"
+
+  - alert: NoMessagesProcessed
+    expr: job:asset_snapshots_consumed_rps == 0
+    for: 10m
+    labels: {severity: warning}
+    annotations:
+      summary: "No snapshots consumed in 10m"
+
+  - alert: HighProcessLatencyP95
+    expr: job:asset_snapshot_process_latency_p95 > 2
+    for: 5m
+    labels: {severity: warning}
+    annotations:
+      summary: "P95 processing latency > 2s (5m)"

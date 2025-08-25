@@ -1,6 +1,5 @@
 # Certificates & local env
-certs/
-.env.development/
+.env.development
 
 # Python
 __pycache__/
@@ -12,6 +11,8 @@ env/
 venv/
 .venv/
 .env
+.env.*
+!.env.example
 .pytest_cache/
 .coverage
 .tox/
@@ -33,6 +34,7 @@ build/
 # OS
 .DS_Store
 Thumbs.db
+*.db
 
 # Test outputs
 test_output.json

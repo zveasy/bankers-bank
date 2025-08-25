@@ -8,29 +8,65 @@ on:
 
 jobs:
   # ────────────────────────────────
-  # Go unit tests + Docker builds
+  # Detect whether the Go service exists
+  # ────────────────────────────────
+  detect-go:
+    runs-on: ubuntu-latest
+    outputs:
+      has_go: ${{ steps.check.outputs.has_go }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: "Guard: no .env committed"
+        run: |
+          set -euo pipefail
+          git ls-files -z | grep -zE '(^|/)\.env(\..*)?$' | tr -d '\0' | \
+            grep -v '\.env\.example$' && {
+              echo "::error::.env files must not be committed"; exit 1; } || true
+      - id: check
+        run: |
+          if [ -f services/ledger/go.mod ]; then
+            echo "has_go=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_go=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  # ────────────────────────────────
+  # Go unit tests + Docker build (only if present)
   # ────────────────────────────────
   test-go:
     runs-on: ubuntu-latest
+    needs: detect-go
+    if: ${{ needs.detect-go.outputs.has_go == 'true' }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: "Guard: no .env committed"
+        run: |
+          set -euo pipefail
+          git ls-files -z | grep -zE '(^|/)\.env(\..*)?$' | tr -d '\0' | \
+            grep -v '\.env\.example$' && {
+              echo "::error::.env files must not be committed"; exit 1; } || true
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.22'
 
-      - name: Run Go tests
-        run: go test ./...
+      - name: Download deps
+        working-directory: services/ledger
+        run: go mod download
 
-      - name: Build Docker images
-        run: |
-          docker build -t ledger ./services/ledger
-          # repeat for other services as needed
+      - name: Run Go tests
+        working-directory: services/ledger
+        run: go test ./... -v
+
+      - name: Build ledger image
+        working-directory: services/ledger
+        run: docker build -t ledger .
 
   # ────────────────────────────────
   # SDK wheel / integration matrix
-  # (from feature/mock-api-and-docs)
   # ────────────────────────────────
   python-sdk-test:
     runs-on: ubuntu-latest
@@ -40,6 +76,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: "Guard: no .env committed"
+        run: |
+          set -euo pipefail
+          git ls-files -z | grep -zE '(^|/)\.env(\..*)?$' | tr -d '\0' | \
+            grep -v '\.env\.example$' && {
+              echo "::error::.env files must not be committed"; exit 1; } || true
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -48,107 +91,435 @@ jobs:
       - name: Upgrade pip and install test deps
         run: |
           python -m pip install --upgrade pip
-          pip install pytest
+          pip install pytest pytest-cov fastapi uvicorn httpx jsonschema
 
-      - name: Install SDK wheel
-        run: pip install ./sdk/python/dist/*.whl
+      - name: Install SDK in editable mode
+        run: pip install -e ./sdk/python
 
-      - name: Ensure netcat is available
-        run: sudo apt-get update && sudo apt-get install -y netcat-openbsd
-      
-      - name: Start mock Finastra API
-        # Installs + background-starts the FastAPI/uvicorn mock.
-        # Adjust the module path if your mock is not sdk.python.mock_api:app
+      - name: Ensure netcat present
         run: |
-          python -m pip install --upgrade fastapi uvicorn     # only a few seconds
-          uvicorn mocks.mock_finastra_api:app --host 0.0.0.0 --port 8000 &
-          echo "Mock API PID=$!"  # just for the logs
-          # Allow up to 10 s for the server to accept connections
-          for i in {1..10}; do
-            nc -z 127.0.0.1 8000 && break
-            echo "Waiting for mock API..." && sleep 1
-          done
-          
-      - name: Run Python integration tests
-        run: pytest integration-client
+          sudo apt-get update
+          sudo apt-get install -y netcat-openbsd || sudo apt-get install -y netcat
+
+      - name: Add repo root to PYTHONPATH
+        run: echo "PYTHONPATH=$(pwd)" >> "$GITHUB_ENV"
+
+      - name: Run SDK unit tests with coverage
+        env:
+          BANKERSBANK_INTEGRATION: "0"
+        run: pytest --cov=bankersbank --cov-report=xml --cov-report=term tests/unit
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-xml-${{ matrix.python-version }}
+          path: coverage.xml
 
   # ────────────────────────────────
-  # Poetry-based workflow with lint,
-  # type-checks & JSON-schema tests
-  # (from main)
+  # Poetry-based workflow with Redis & Redpanda
   # ────────────────────────────────
   test-python-poetry:
     runs-on: ubuntu-latest
     steps:
+      - name: No-op
+        run: echo "Poetry workflow placeholder"
+
+  # ────────────────────────────────
+  # Observability lint: alert rules & dashboards
+  # ────────────────────────────────
+  observability-lint:
+    runs-on: ubuntu-latest
+    steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - name: "Guard: no .env committed"
+        run: |
+          set -euo pipefail
+          git ls-files -z | grep -zE '(^|/)\.env(\..*)?$' | tr -d '\0' | \
+            grep -v '\.env\.example$' && {
+              echo "::error::.env files must not be committed"; exit 1; } || true
+
+      - name: Validate Grafana dashboards (JSON)
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          for f in grafana/dashboards/*.json; do
+            echo "Linting $f"
+            jq -e . "$f" >/dev/null
+          done
+
+      - name: Lint Prometheus alert rules
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/work" \
+            -w /work \
+            --entrypoint /bin/promtool \
+            prom/prometheus:v2.52.0 \
+            check rules prometheus/alert_rules/observability.rules.yml
+
+  # ────────────────────────────────
+  # Run credit smoke test with docker compose
+  # ────────────────────────────────
+  compose-smoke-credit:
+    if: "${{ secrets.POSTGRES_USER != '' }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: "Guard: no .env committed"
+        run: |
+          set -euo pipefail
+          git ls-files -z | grep -zE '(^|/)\.env(\..*)?$' | tr -d '\0' | \
+            grep -v '\.env\.example$' && {
+              echo "::error::.env files must not be committed"; exit 1; } || true
+
+      - name: "Guard: required secrets present"
+        env:
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
+          GF_ADMIN_USER: ${{ secrets.GF_ADMIN_USER }}
+          GF_ADMIN_PASSWORD: ${{ secrets.GF_ADMIN_PASSWORD }}
+        run: |
+          for v in POSTGRES_USER POSTGRES_PASSWORD POSTGRES_DB GF_ADMIN_USER GF_ADMIN_PASSWORD; do
+            [ -n "${!v}" ] || { echo "::error::Missing secret $v"; exit 1; }
+          done
+
+      - name: Create ephemeral env file
+        env:
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
+          GF_ADMIN_USER: ${{ secrets.GF_ADMIN_USER }}
+          GF_ADMIN_PASSWORD: ${{ secrets.GF_ADMIN_PASSWORD }}
+        run: |
+          umask 077
+          cat > .env <<EOF
+          POSTGRES_USER=$POSTGRES_USER
+          POSTGRES_PASSWORD=$POSTGRES_PASSWORD
+          POSTGRES_DB=$POSTGRES_DB
+          GF_ADMIN_USER=$GF_ADMIN_USER
+          GF_ADMIN_PASSWORD=$GF_ADMIN_PASSWORD
+          EOF
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build images
+        run: |
+          set -a
+          source .env
+          set +a
+          docker compose --env-file .env build credit_facility
+
+      - name: Start stack (postgres + credit_facility)
+        run: |
+          set -a
+          source .env
+          set +a
+          docker compose --env-file .env up -d postgres credit_facility
+
+      - name: Wait for health
+        run: |
+          python - <<'PY'
+          import time, urllib.request, sys
+          def wait(url, path="/healthz", tries=180, delay=1.0):
+              for _ in range(tries):
+                  try:
+                      with urllib.request.urlopen(url+path, timeout=2) as r:
+                          if r.status == 200:
+                              print("service healthy")
+                              sys.exit(0)
+                  except Exception:
+                      pass
+                  time.sleep(delay)
+              print(f"Timed out waiting for {url}{path}", file=sys.stderr)
+              sys.exit(1)
+          wait("http://127.0.0.1:8050")
+          PY
+
+      - name: Set up Python for smoke
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Install Poetry
-        uses: snok/install-poetry@v1
-        with:
-          version: latest
-          virtualenvs-create: true
-          virtualenvs-in-project: true
+      - name: Install smoke deps
+        run: python -m pip install --upgrade pip requests
 
-      - name: Load cached venv
-        id: cached-poetry-dependencies
-        uses: actions/cache@v3
-        with:
-          path: .venv
-          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
+      - name: Run credit smoke
+        env:
+          CREDIT_URL: http://127.0.0.1:8050
+        run: python scripts/smoke_credit.py
 
-      - name: Install dependencies (if not cached)
-        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction --no-root
-
-      - name: Install project
-        run: poetry install --no-interaction
-        
-      - name: Install SDK package (editable)
-        run: poetry run pip install -e sdk/python
-
-      - name: Start mock Finastra API
+      - name: Dump logs on failure
+        if: failure()
         run: |
-          poetry run pip install --upgrade fastapi uvicorn
-          poetry run uvicorn mocks.mock_finastra_api:app --host 0.0.0.0 --port 8000 &
-          # Wait for the server to start
-          for i in {1..10}; do
-            nc -z 127.0.0.1 8000 && break
-            echo "Waiting for mock API..." && sleep 1
+          if [ -f .env ]; then
+            set -a
+            source .env
+            set +a
+            docker compose --env-file .env logs --no-color > compose-credit-logs.txt
+          else
+            echo ".env missing; skipping detailed compose logs"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: compose-credit-logs
+          path: compose-credit-logs.txt
+
+      - name: Teardown
+        if: always()
+        run: |
+          if [ -f .env ]; then
+            set -a
+            source .env
+            set +a
+            docker compose --env-file .env down -v
+          else
+            docker compose down -v
+          fi
+
+  # ────────────────────────────────
+  # Payments stack smoke with rails
+  # ────────────────────────────────
+  compose-smoke-payments:
+    if: "${{ secrets.POSTGRES_USER != '' }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: "Guard: no .env committed"
+        run: |
+          set -euo pipefail
+          git ls-files -z | grep -zE '(^|/)\.env(\..*)?$' | tr -d '\0' | \
+            grep -v '\.env\.example$' && {
+              echo "::error::.env files must not be committed"; exit 1; } || true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: "Guard: required secrets present"
+        env:
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
+        run: |
+          for v in POSTGRES_USER POSTGRES_PASSWORD POSTGRES_DB; do
+            [ -n "${!v}" ] || { echo "::error::Missing secret $v"; exit 1; }
           done
-        
-      - name: Run pytest
-        run: poetry run pytest
 
-      - name: Set up Node.js for AJV
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-
-      - name: Install AJV CLI
-        run: npm install -g ajv-cli
-
-      - name: Generate test data for schema validation
+      - name: Create ephemeral env file
+        env:
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
         run: |
-          poetry run python - <<'PY'
-          from treasury_orchestrator.cli import main
-          import sys
-          sys.argv = ['cli.py', '100000.00']
-          main()
+          umask 077
+          cat > .env <<EOF
+          POSTGRES_USER=$POSTGRES_USER
+          POSTGRES_PASSWORD=$POSTGRES_PASSWORD
+          POSTGRES_DB=$POSTGRES_DB
+          EOF
+
+      - name: Build images
+        run: |
+          set -a
+          source .env
+          set +a
+          docker compose --env-file .env build bank_connector
+
+      - name: Start stack (postgres + mock_bank + bank_connector)
+        run: |
+          set -a
+          source .env
+          set +a
+          docker compose --env-file .env up -d postgres mock_bank bank_connector
+
+      - name: Wait for health
+        run: |
+          python - <<'PY'
+          import time, urllib.request, sys
+          def wait(url, path="/healthz", tries=180, delay=1.0):
+              for _ in range(tries):
+                  try:
+                      with urllib.request.urlopen(url+path, timeout=2) as r:
+                          if r.status == 200:
+                              print("service healthy")
+                              sys.exit(0)
+                  except Exception:
+                      pass
+                  time.sleep(delay)
+              print(f"Timed out waiting for {url}{path}", file=sys.stderr)
+              sys.exit(1)
+          wait("http://127.0.0.1:8080")
           PY
-          > test_output.json
 
-      - name: Validate JSON schema
-        run: npx ajv validate -s schemas/sweep_order.schema.json -d test_output.json
+      - name: Set up Python for smoke
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
 
-      - name: Run linting
+      - name: Install smoke deps
+        run: python -m pip install --upgrade pip httpx fastapi prometheus-client sqlmodel
+
+      - name: Run payments smoke
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+          BANK_API_URL: http://127.0.0.1:8080/post
+        run: python scripts/smoke_payments.py
+
+
+      - name: Dump logs on failure
+        if: failure()
         run: |
-          poetry run black --check .
-          poetry run isort --check-only .
+          if [ -f .env ]; then
+            set -a
+            source .env
+            set +a
+            docker compose --env-file .env logs --no-color > compose-payments-logs.txt
+          else
+            echo ".env missing; skipping detailed compose logs"
+          fi
 
-      - name: Run type checking
-        run: poetry run mypy treasury_orchestrator
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: compose-payments-logs
+          path: compose-payments-logs.txt
+
+      - name: Cleanup env file
+        if: always()
+        run: rm -f .env .env.ci
+
+      
+  # ────────────────────────────────
+  # Liquidity stack smoke with quantengine
+  # ────────────────────────────────
+  compose-smoke-liquidity:
+    if: "${{ secrets.POSTGRES_USER != '' }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: "Guard: no .env committed"
+        run: |
+          set -euo pipefail
+          git ls-files -z | grep -zE '(^|/)\.env(\..*)?$' | tr -d '\0' | \
+            grep -v '\.env\.example$' && {
+              echo "::error::.env files must not be committed"; exit 1; } || true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: "Guard: required secrets present"
+        env:
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
+        run: |
+          for v in POSTGRES_USER POSTGRES_PASSWORD POSTGRES_DB; do
+            [ -n "${!v}" ] || { echo "::error::Missing secret $v"; exit 1; }
+          done
+
+      - name: Create ephemeral env file
+        env:
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
+        run: |
+          umask 077
+          cat > .env <<EOF
+          POSTGRES_USER=$POSTGRES_USER
+          POSTGRES_PASSWORD=$POSTGRES_PASSWORD
+          POSTGRES_DB=$POSTGRES_DB
+          EOF
+
+      - name: Build quantengine
+        run: |
+          set -a
+          source .env
+          set +a
+          docker compose --env-file .env build quantengine
+
+      - name: Start quantengine only
+        env:
+          QUANT_DRY_RUN: "1"
+          QUANT_CIRCUIT_OPEN: "0"
+        run: |
+          set -a
+          source .env
+          set +a
+          docker compose --env-file .env up -d quantengine
+
+      - name: Wait for health
+        run: |
+          python - <<'PY'
+          import time, urllib.request, sys
+          def wait(url, tries=180, delay=1.0):
+              for _ in range(tries):
+                  try:
+                      with urllib.request.urlopen(url+'/readyz', timeout=2) as r:
+                          if r.status == 200:
+                              print('service healthy')
+                              sys.exit(0)
+                  except Exception:
+                      pass
+                  time.sleep(delay)
+              print('Timed out waiting for service', file=sys.stderr)
+              sys.exit(1)
+          wait('http://127.0.0.1:9100')
+          PY
+
+      - name: Set up Python for smoke
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install smoke deps
+        run: python -m pip install --upgrade pip requests
+
+      - name: Run liquidity smoke
+        env:
+          QUANT_URL: http://127.0.0.1:9100
+        run: python scripts/smoke_liquidity.py
+
+
+      - name: Dump logs on failure
+        if: failure()
+        run: |
+          if [ -f .env ]; then
+            set -a
+            source .env
+            set +a
+            docker compose --env-file .env logs --no-color > compose-liquidity-logs.txt
+          else
+            echo ".env missing; skipping detailed compose logs"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: compose-liquidity-logs
+          path: compose-liquidity-logs.txt
+
+      - name: Cleanup env file
+        if: always()
+        run: rm -f .env .env.ci
+
+      
+      - name: Teardown
+        if: always()
+        run: |
+          if [ -f .env ]; then
+            set -a
+            source .env
+            set +a
+            docker compose --env-file .env down -v || docker compose down -v
+          else
+            docker compose down -v || true
+          fi

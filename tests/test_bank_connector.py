@@ -1,0 +1,77 @@
+import importlib.util
+
+import pytest
+
+HTTPX_AVAILABLE = importlib.util.find_spec("httpx") is not None
+pytestmark = pytest.mark.skipif(not HTTPX_AVAILABLE, reason="httpx not installed")
+
+if HTTPX_AVAILABLE:
+    from fastapi.testclient import TestClient
+
+    from bank_connector.main import app
+
+    @pytest.mark.enable_socket
+    def test_post_sweep_order(requests_mock):
+        requests_mock.post("https://localhost:8000", text="<ok/>")
+        client = TestClient(app)
+        payload = {
+            "order_id": "123",
+            "amount": 10.0,
+            "currency": "USD",
+            "debtor": "Alice",
+            "creditor": "Bob",
+        }
+        resp = client.post(
+            "/sweep-order", json=payload, headers={"Authorization": "Bearer testtoken"}
+        )
+        assert resp.status_code == 200
+
+    @pytest.mark.enable_socket
+    def test_payment_status(requests_mock):
+        xml = "<pain.002></pain.002>"
+        requests_mock.post("https://localhost:8000", text="<ok/>")
+        client = TestClient(app)
+        client.post(
+            "/sweep-order",
+            json={
+                "order_id": "abc",
+                "amount": 1,
+                "currency": "USD",
+                "debtor": "A",
+                "creditor": "B",
+            },
+            headers={"Authorization": "Bearer testtoken"},
+        )
+        resp = client.post(
+            "/payment-status",
+            data=xml,
+            headers={"X-Order-ID": "abc", "Authorization": "Bearer testtoken"},
+        )
+        assert resp.status_code == 200
+
+    def test_sweep_order_unauthorized():
+        client = TestClient(app)
+        payload = {
+            "order_id": "123",
+            "amount": 10.0,
+            "currency": "USD",
+            "debtor": "Alice",
+            "creditor": "Bob",
+        }
+        assert client.post("/sweep-order", json=payload).status_code == 401
+
+    def test_sweep_order_forbidden():
+        client = TestClient(app)
+        payload = {
+            "order_id": "123",
+            "amount": 10.0,
+            "currency": "USD",
+            "debtor": "Alice",
+            "creditor": "Bob",
+        }
+        resp = client.post(
+            "/sweep-order",
+            json=payload,
+            headers={"Authorization": "Bearer wrong"},
+        )
+        assert resp.status_code == 403

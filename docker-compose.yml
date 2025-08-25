@@ -1,0 +1,245 @@
+# version key is obsolete in Compose v2; omit to silence warnings
+# Credentials loaded from `.env` (see `.env.example`)
+services:
+  # ────────────────────────────────
+  # Infra
+  # ────────────────────────────────
+  postgres:
+    image: postgres:13
+    env_file: .env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports: ["5432:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB} -h localhost || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+
+  redpanda:
+    image: redpandadata/redpanda:latest
+    command: >
+      redpanda start \
+        --overprovisioned \
+        --smp 1 \
+        --memory 1G \
+        --reserve-memory 0M \
+        --node-id 0 \
+        --check=false \
+        --kafka-addr PLAINTEXT://0.0.0.0:9092,OUTSIDE://0.0.0.0:29092 \
+        --advertise-kafka-addr PLAINTEXT://redpanda:9092,OUTSIDE://localhost:29092
+    ports:
+      - "9092:9092"   # in-Docker clients use redpanda:9092
+      - "29092:29092"  # host clients use localhost:29092
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9644/v1/status/ready || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 20
+      start_period: 15s
+    restart: unless-stopped
+    networks:
+      default:
+        aliases:
+          - redpanda
+
+  redis:
+    image: redis:7
+    ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    restart: unless-stopped
+  # Mock external bank (for /sweep-order)
+  # ────────────────────────────────
+  mock_bank:
+    image: mccutchen/go-httpbin:latest   # lightweight httpbin
+    expose:
+      - "8080"
+    restart: unless-stopped
+
+  # ────────────────────────────────
+  # App services
+  # ────────────────────────────────
+  bank_connector:
+    build:
+      context: .
+      dockerfile: bank_connector/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mock_bank:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      BANK_API_URL: http://mock_bank:8080/post
+      BANK_RAILS_ENABLED: "1"
+      BANK_RAILS_URL: http://mock_bank:8080/post
+    ports: ["127.0.0.1:8080:8080"]
+    command: uvicorn bank_connector.main:app --host 0.0.0.0 --port 8080 --ssl-certfile /certs/server.pem --ssl-keyfile /certs/server.key
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - python -c "import ssl,urllib.request,sys;ctx=ssl.create_default_context(cafile='/certs/server.pem');sys.exit(0) if urllib.request.urlopen('https://127.0.0.1:8080/healthz',context=ctx,timeout=5).getcode()==200 else sys.exit(1)"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 25s
+    restart: unless-stopped
+
+  asset_aggregator:
+    build:
+      context: .
+      dockerfile: asset_aggregator/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+    environment:
+      KAFKA_BOOTSTRAP: redpanda:9092
+      ASSET_DB_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    ports:
+      - "127.0.0.1:9000:8000"
+      - "127.0.0.1:8002:8001"
+    command: uvicorn asset_aggregator.api:app --host 0.0.0.0 --port 8000 --ssl-certfile /certs/server.pem --ssl-keyfile /certs/server.key
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - python -c "import ssl,urllib.request,sys;ctx=ssl.create_default_context(cafile='/certs/server.pem');sys.exit(0) if urllib.request.urlopen('https://127.0.0.1:8000/readyz',context=ctx,timeout=7).getcode()==200 else sys.exit(1)"
+      interval: 10s
+      timeout: 7s
+      retries: 12
+      start_period: 30s
+    restart: unless-stopped
+
+  quantengine:
+    build:
+      context: .
+      dockerfile: quantengine/Dockerfile
+    depends_on:
+      redpanda:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      QUANT_DB_URL: sqlite:////data/quant.db
+      QUANT_DRY_RUN: "1"
+    volumes:
+      - quantdata:/data
+    ports: ["127.0.0.1:9100:8000"]
+    command: uvicorn quantengine.main:app --host 0.0.0.0 --port 8000 --ssl-certfile /certs/server.pem --ssl-keyfile /certs/server.key
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - python -c "import ssl,urllib.request,sys;ctx=ssl.create_default_context(cafile='/certs/server.pem');sys.exit(0) if urllib.request.urlopen('https://127.0.0.1:8000/readyz',context=ctx,timeout=7).getcode()==200 else sys.exit(1)"
+      interval: 10s
+      timeout: 7s
+      retries: 12
+      start_period: 30s
+    restart: unless-stopped
+
+  credit_facility:
+    build:
+      context: .
+      dockerfile: credit_facility/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ASSET_DB_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    ports:
+      - "127.0.0.1:8050:8050"
+    command: uvicorn credit_facility.api:create_app --host 0.0.0.0 --port 8050 --ssl-certfile /certs/server.pem --ssl-keyfile /certs/server.key
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - python -c "import ssl,urllib.request,sys;ctx=ssl.create_default_context(cafile='/certs/server.pem');sys.exit(0) if urllib.request.urlopen('https://127.0.0.1:8050/healthz',context=ctx,timeout=5).getcode()==200 else sys.exit(1)"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 25s
+    restart: unless-stopped
+
+  quant_consumer:
+    build:
+      context: .
+      dockerfile: quantengine/Dockerfile
+    depends_on:
+      redpanda:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      QUANT_DB_URL: sqlite:////data/quant.db
+      ASSET_DB_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      KAFKA_BOOTSTRAP: redpanda:9092
+    entrypoint: ["python", "-u", "-m", "quantengine.kafka_consumer"]
+    command: ["redpanda:9092"]
+    volumes:
+      - quantdata:/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - python -c "import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://127.0.0.1:8001/', timeout=5).getcode()==200 else sys.exit(1)"
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 25s
+    restart: unless-stopped
+    networks:
+      default:
+
+  # ────────────────────────────────
+  # Observability
+  # ────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.52.0
+    restart: unless-stopped
+    ports:
+      - "8001:9090"  # Prometheus UI at http://localhost:8001
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alert_rules:/etc/prometheus/alert_rules:ro
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --web.listen-address=:9090
+    depends_on:
+      bank_connector:
+        condition: service_started
+      asset_aggregator:
+        condition: service_started
+      quantengine:
+        condition: service_started
+
+  grafana:
+    image: grafana/grafana:latest
+    ports: ["127.0.0.1:3000:3000"]
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_SECURITY_ADMIN_USER: ${GF_ADMIN_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GF_ADMIN_PASSWORD}
+    volumes:
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
+      - ./grafana/provisioning:/etc/grafana/provisioning
+    depends_on:
+      prometheus:
+        condition: service_started
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  quantdata:

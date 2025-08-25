@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: bankers-bank-env
+  labels:
+    app: bankers-bank
+data:
+  KAFKA_BOOTSTRAP: "redpanda:{{ .Values.redpanda.port }}"
+  REDIS_URL: "redis://redis:{{ .Values.redis.port }}/0"

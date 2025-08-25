@@ -16,6 +16,7 @@ Build a regulated, capital-efficient core so regional banks can:
 | `/sdk`          | Auto-generated typed clients       |
 | `/infra`        | Terraform + Kustomize IaC          |
 | `/docs`         | Architecture, ADRs, runbooks       |
+| `/asset_aggregator` | Python service for asset snapshots |
 
 ### Quick-start
 
@@ -31,6 +32,63 @@ make test
 make gen-sdk
 
 ```
+
+### Configuration
+
+Copy `.env.example` to `.env` and set your database credentials. Docker Compose
+and the Helm chart reference these variables at runtime.
+
+```bash
+cp .env.example .env
+# edit as needed, then for Helm deployments:
+export $(grep -v '^#' .env | xargs)
+envsubst < kubernetes/helm/values.yaml | helm install bankers-bank kubernetes/helm -f -
+```
+
+### Docker quick-start
+
+```bash
+# build and start all containers in the background
+docker compose up --build -d
+
+# Open service docs (Windows `start` opens default browser)
+start https://localhost:8003/docs  # Bank Connector
+start https://localhost:9000/docs  # Asset Aggregator
+
+# stop and remove containers, networks, volumes
+docker compose down -v
+```
+
+### Grafana dashboards
+
+Grafana runs with authentication enabled and is only bound to `localhost` to
+avoid exposing dashboards beyond internal networks.
+
+1.  Set credentials in `.env`:
+
+    ```bash
+    GF_ADMIN_USER=admin
+    GF_ADMIN_PASSWORD=changeme
+    ```
+
+2.  Start the stack with `docker compose up`.
+3.  Browse to [http://localhost:3000](http://localhost:3000) and log in with the
+    credentials above.
+4.  Do not publish the Grafana port publicly without additional network
+    protections (VPN, firewall, etc.).
+
+### Health & smoke
+
+- Health endpoints:
+  - Bank-Connector: `GET https://localhost:8003/healthz`
+  - Asset-Aggregator: `GET https://localhost:9000/healthz`
+
+- Smoke test:
+  ```bash
+  docker compose up -d
+  python scripts/smoke_e2e.py
+  docker compose down -v
+  ```
 
 ## Python SDK (bankersbank)
 
@@ -61,5 +119,8 @@ print(accounts)
 > For local dev/testing without live Finastra sandbox, see:
 
 - docs/mock_api_endpoints.md
+
+Detailed instructions for obtaining OAuth tokens and calling the Finastra
+sandbox APIs are available in `docs/finastra_api.md`.
 
 Last updated: 2025-06-27

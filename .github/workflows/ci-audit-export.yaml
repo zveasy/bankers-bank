@@ -1,0 +1,98 @@
+name: Audit Exporter Smoke
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "credit_facility/**"
+      - "bin/audit-export"
+      - "tests/test_audit_cli.py"
+  pull_request:
+    paths:
+      - "credit_facility/**"
+      - "bin/audit-export"
+      - "tests/test_audit_cli.py"
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: "Guard: no .env committed"
+        run: |
+          set -euo pipefail
+          git ls-files -z | grep -zE '(^|/)\.env(\..*)?$' | tr -d '\0' | \
+            grep -v '\.env\.example$' && {
+              echo "::error::.env files must not be committed"; exit 1; } || true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: latest
+
+      - name: Install dependencies and ensure SQLAlchemy
+        run: |
+          poetry install --no-interaction --no-root
+          poetry run pip uninstall -y SQLAlchemy
+          poetry run pip install "SQLAlchemy==1.4.49"
+          poetry run pip uninstall -y sqlmodel
+          poetry run pip install "sqlmodel==0.0.8"
+
+      - name: Seed SQLite DB for exporter
+        run: |
+          python - <<'PY'
+          import sqlite3, pathlib
+          db = pathlib.Path('test.db')
+          conn = sqlite3.connect(db)
+          conn.execute("""
+          CREATE TABLE credit_audit_journal (
+            id TEXT PRIMARY KEY,
+            created_at TEXT,
+            event_ts TEXT,
+            exported_at TEXT,
+            export_file TEXT,
+            export_id TEXT,
+            bank_id TEXT,
+            action TEXT,
+            entity_type TEXT,
+            entity_id TEXT,
+            actor TEXT,
+            payload TEXT,
+            error_code TEXT,
+            error_class TEXT,
+            error_msg TEXT
+          );
+          """)
+          conn.execute("""
+          INSERT INTO credit_audit_journal (
+            id, created_at, event_ts, bank_id, action, entity_type, entity_id, actor, payload
+          ) VALUES (
+            'row1','2025-01-01 00:00:00','2025-01-01 00:00:00','bank1','create','t','1','ci-seed','{}'
+          );
+          """)
+          conn.commit()
+          conn.close()
+          PY
+
+      - name: Run audit exporter CLI
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          mkdir -p out
+          poetry run python bin/audit-export \
+            --db-url sqlite:///$(pwd)/test.db \
+            --out-dir ./out --batch-size 50
+
+      - name: Verify export file exists
+        run: |
+          ls -l out
+          test -n "$(ls -1 out/*.ndjson.gz | head -n1)"
