@@ -17,6 +17,8 @@ from common.auth import require_token
 from fastapi.responses import JSONResponse
 from prometheus_client import make_asgi_app
 from sqlmodel import Session, select
+from sqlmodel import Session as _AuditSession  # audit
+from common.audit import log_event, get_engine as _audit_engine  # audit
 
 from bank_connector.iso20022 import PaymentStatus, build_pain001, parse_pain002
 from treasury_observability.metrics import (rails_dlq_depth,
@@ -160,6 +162,20 @@ async def create_sweep_order(
     session.add(order)
     session.commit()
     session.refresh(order)
+
+    # --- Audit log ---
+    with _AuditSession(_audit_engine()) as _aud_sess:
+        log_event(
+            session=_aud_sess,
+            service="bank_connector",
+            action="SWEEP_ORDER_CREATED",
+            actor=payload.debtor,
+            details={
+                "order_id": payload.order_id,
+                "amount": float(payload.amount),
+                "currency": payload.currency,
+            },
+        )
 
     # build XML
     exec_ts = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())

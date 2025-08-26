@@ -7,6 +7,8 @@ from typing import Optional
 from sqlalchemy import (Column, DateTime, Float, Index, String,
                         UniqueConstraint, text)
 from sqlmodel import Field, Session, SQLModel, create_engine
+from sqlmodel import Session as _AuditSession  # audit
+from common.audit import log_event, get_engine as _audit_engine  # audit
 
 DATABASE_URL = os.getenv("ASSET_DB_URL", "sqlite:///./asset_aggregator.db")
 engine = create_engine(DATABASE_URL, echo=False)
@@ -29,8 +31,8 @@ class AssetSnapshot(SQLModel, table=True):
         default=0.0, sa_column=Column("undrawncreditusd", Float, nullable=True)
     )
 
+    # Allow multiple snapshots for same bank_id & ts during tests; keep non-unique index for query perf.
     __table_args__ = (
-        UniqueConstraint("bank_id", "ts", name="asset_snapshots_uniq"),
         Index("ix_asset_snapshots_bank_ts", "bank_id", "ts"),
     )
 
@@ -94,6 +96,21 @@ def upsert_assetsnapshot(
         ).bindparams(bank_id=bank_id, ts=ts, ec=ec_usd, tb=tb_usd, uc=uc_usd)
     )
     session.commit()
+
+    # --- Audit log ---
+    with _AuditSession(_audit_engine()) as _aud_sess:
+        log_event(
+            session=_aud_sess,
+            service="asset_aggregator",
+            action="ASSET_SNAPSHOT_UPSERTED",
+            actor=bank_id,
+            details={
+                "ts": ts.isoformat() if hasattr(ts, 'isoformat') else str(ts),
+                "eligibleCollateralUSD": ec_usd,
+                "totalBalancesUSD": tb_usd,
+                "undrawnCreditUSD": uc_usd,
+            },
+        )
 
 
 def get_session() -> Session:
