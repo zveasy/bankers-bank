@@ -8,6 +8,7 @@ import socket
 import time
 from datetime import datetime, timedelta, timezone
 from typing import List
+import asyncio
 
 from fastapi import Depends, FastAPI, HTTPException
 from common.auth import require_token
@@ -19,6 +20,12 @@ from treasury_observability.metrics import snapshot_latency_seconds
 
 from .db import AssetSnapshot, engine, init_db
 from .service import KAFKA_BOOTSTRAP, reconcile_snapshot, run_snapshot_once
+from asset_aggregator.syncers.finastra_collateral import CollateralSyncer
+from integrations.finastra.collateral_client import CollateralClient
+from asset_aggregator.syncers.finastra_accounts import FinastraAccountsSyncer
+from asset_aggregator.syncers.finastra_balances import FinastraBalancesSyncer
+from integrations.finastra.accounts_client import AccountsClient
+from integrations.finastra.balances_client import BalancesClient
 
 app = FastAPI()
 init_db()
@@ -128,3 +135,52 @@ def get_history(
         .order_by(AssetSnapshot.ts)
     ).all()
     return rows
+
+
+# --------------------------------------------------------------------------------------
+# Collateral sync trigger (optional operational endpoint)
+# --------------------------------------------------------------------------------------
+
+
+@app.post("/sync/collateral", response_model=dict)
+async def run_collateral_sync(_: None = Depends(require_token)):
+    """Run Finastra collateral sync once and return #records processed."""
+    async def _run() -> int:
+        async with CollateralClient() as client:
+            syncer = CollateralSyncer(client=client, session_factory=lambda: Session(engine))
+            return await syncer.run_once()
+
+    processed = await _run()
+    return {"ok": True, "processed": processed}
+
+
+# --------------------------------------------------------------------------------------
+# Accounts and Balances sync triggers
+# --------------------------------------------------------------------------------------
+
+
+class _AccountsPayload(BaseModel):
+    contexts: list[str] | None = None
+
+
+@app.post("/sync/accounts", response_model=dict)
+async def run_accounts_sync(payload: _AccountsPayload | None = None, _: None = Depends(require_token)):
+    ctxs = payload.contexts if payload else None
+
+    async with AccountsClient() as client:
+        syncer = FinastraAccountsSyncer(client=client, session_factory=lambda: Session(engine))
+        cnt = await syncer.run_once(ctxs)
+    return {"ok": True, "processed": cnt}
+
+
+class _BalancesPayload(BaseModel):
+    accountIds: list[str] | None = None
+
+
+@app.post("/sync/balances", response_model=dict)
+async def run_balances_sync(payload: _BalancesPayload | None = None, _: None = Depends(require_token)):
+    ids = payload.accountIds if payload else None
+    async with BalancesClient() as client:
+        syncer = FinastraBalancesSyncer(client=client, session_factory=lambda: Session(engine))
+        cnt = await syncer.run_once(ids)
+    return {"ok": True, "processed": cnt}

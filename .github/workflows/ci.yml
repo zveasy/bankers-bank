@@ -419,6 +419,68 @@ jobs:
   # ────────────────────────────────
   # Liquidity stack smoke with quantengine
   # ────────────────────────────────
+  
+  # ────────────────────────────────
+  # Finastra Collateral offline smoke
+  # ────────────────────────────────
+  smoke-collateral-offline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: "Guard: no .env committed"
+        run: |
+          set -euo pipefail
+          git ls-files -z | grep -zE '(^|/)\.env(\..*)?$' | tr -d '\0' | \
+            grep -v '\.env\.example$' && {
+              echo "::error::.env files must not be committed"; exit 1; } || true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install smoke deps
+        run: python -m pip install --upgrade pip httpx sqlmodel fastapi prometheus-client
+
+      - name: Run collateral smoke
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: python scripts/smoke_finastra_collateral.py --offline
+
+    # ────────────────────────────────
+  # Finastra Accounts & Balances offline smoke
+  # ────────────────────────────────
+  smoke-accounts-balances-offline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: "Guard: no .env committed"
+        run: |
+          set -euo pipefail
+          git ls-files -z | grep -zE '(^|/)\.env(\..*)?$' | tr -d '\0' | \
+            grep -v '\.env\.example$' && {
+              echo "::error::.env files must not be committed"; exit 1; } || true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install smoke deps
+        run: python -m pip install --upgrade pip httpx sqlmodel fastapi prometheus-client
+
+      - name: Run accounts smoke
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: python scripts/smoke_finastra_accounts.py
+
+      - name: Run balances smoke
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: python scripts/smoke_finastra_balances.py
+
   compose-smoke-liquidity:
     needs: check-secrets
     if: ${{ needs.check-secrets.outputs.have_pg == 'true' }}

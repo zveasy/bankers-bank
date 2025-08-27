@@ -13,6 +13,8 @@ from common.auth import require_token
 from prometheus_client import make_asgi_app
 from pydantic import BaseModel, Field
 from sqlmodel import Session, select
+from sqlmodel import Session as _AuditSession  # audit
+from common.audit import log_event, get_engine as _audit_engine  # audit
 
 from asset_aggregator.db import get_session  # shared session helper
 from credit_facility.models import CreditDraw, CreditRepayment
@@ -137,6 +139,20 @@ async def draw_funds(
                 outcome="idempotent",
                 provider=provider.__class__.__name__,
             ).inc()
+            # --- Audit log ---
+            with _AuditSession(_audit_engine()) as _aud_sess:
+                log_event(
+                    session=_aud_sess,
+                    service="credit_facility",
+                    action="CREDIT_DRAW",
+                    actor=req.bank_id,
+                    details={
+                        "amount": req.amount,
+                        "currency": req.currency,
+                        "status": prior.status,
+                    },
+                )
+            # recompute outstanding and return idempotent response
             outstanding = _recompute_outstanding_gauge(svc, req.bank_id)
             return ActionResponse(
                 id=prior.id,
@@ -187,7 +203,35 @@ async def draw_funds(
         credit_actions_total.labels(
             action="draw", outcome="fail", provider=provider.__class__.__name__
         ).inc()
+        # --- Audit log (failure) ---
+        with _AuditSession(_audit_engine()) as _aud_sess:
+            log_event(
+                session=_aud_sess,
+                service="credit_facility",
+                action="CREDIT_DRAW_FAILED",
+                actor=req.bank_id,
+                details={
+                    "amount": req.amount,
+                    "currency": req.currency,
+                    "error": str(exc),
+                    "status": row.status,
+                },
+            )
         raise HTTPException(status_code=502, detail=f"provider_error: {exc}")
+
+    # --- Audit log ---
+    with _AuditSession(_audit_engine()) as _aud_sess:
+        log_event(
+                session=_aud_sess,
+            service="credit_facility",
+            action="CREDIT_DRAW",
+            actor=req.bank_id,
+            details={
+                "amount": req.amount,
+                "currency": req.currency,
+                "status": row.status,
+            },
+        )
 
     outstanding = _recompute_outstanding_gauge(svc, req.bank_id)
     return ActionResponse(
@@ -223,6 +267,20 @@ async def repay_funds(
                 outcome="idempotent",
                 provider=provider.__class__.__name__,
             ).inc()
+            # --- Audit log ---
+            with _AuditSession(_audit_engine()) as _aud_sess:
+                log_event(
+                    session=_aud_sess,
+                    service="credit_facility",
+                    action="CREDIT_REPAY",
+                    actor=req.bank_id,
+                    details={
+                        "amount": req.amount,
+                        "currency": req.currency,
+                        "status": prior.status,
+                    },
+                )
+            # recompute outstanding and return idempotent response
             outstanding = _recompute_outstanding_gauge(svc, req.bank_id)
             return ActionResponse(
                 id=prior.id,
@@ -263,7 +321,35 @@ async def repay_funds(
         credit_actions_total.labels(
             action="repay", outcome="fail", provider=provider.__class__.__name__
         ).inc()
+        # --- Audit log (failure) ---
+        with _AuditSession(_audit_engine()) as _aud_sess:
+            log_event(
+                session=_aud_sess,
+                service="credit_facility",
+                action="CREDIT_REPAY_FAILED",
+                actor=req.bank_id,
+                details={
+                    "amount": req.amount,
+                    "currency": req.currency,
+                    "error": str(exc),
+                    "status": row.status,
+                },
+            )
         raise HTTPException(status_code=502, detail=f"provider_error: {exc}")
+
+    # --- Audit log ---
+    with _AuditSession(_audit_engine()) as _aud_sess:
+        log_event(
+                session=_aud_sess,
+            service="credit_facility",
+            action="CREDIT_REPAY",
+            actor=req.bank_id,
+            details={
+                "amount": req.amount,
+                "currency": req.currency,
+                "status": row.status,
+            },
+        )
 
     outstanding = _recompute_outstanding_gauge(svc, req.bank_id)
     return ActionResponse(
