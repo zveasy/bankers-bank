@@ -481,7 +481,7 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}
         run: python scripts/smoke_finastra_balances.py
 
-compose-smoke-liquidity:
+  compose-smoke-liquidity:
     needs: check-secrets
     if: ${{ needs.check-secrets.outputs.have_pg == 'true' }}
     runs-on: ubuntu-latest
