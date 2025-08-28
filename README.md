@@ -23,6 +23,7 @@ Build a regulated, capital-efficient core so regional banks can:
 ```bash
 #  clone & bootstrap
 git clone git@github.com:OandL/bankers-bank.git && cd bankers-bank
+make init-db                        # initialise local SQLite files
 ./scripts/bootstrap_dev.sh          # spins up Postgres, Kafka, services
 
 # run Go unit tests
