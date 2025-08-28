@@ -9,6 +9,7 @@ from __future__ import annotations
 import os
 import time
 from datetime import datetime, timezone
+from common.datetime import parse_iso8601
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException
@@ -113,7 +114,7 @@ def liquidity_evaluate(
 
     # asof date (YYYY-MM-DD) for holiday rule
     try:
-        asof_date = datetime.fromisoformat(req.asof_ts).date()  # type: ignore[arg-type]
+        asof_date = parse_iso8601(req.asof_ts).date()
     except Exception:
         raise HTTPException(status_code=400, detail="invalid asof_ts ISO format")
 

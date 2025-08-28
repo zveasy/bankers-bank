@@ -7,7 +7,8 @@ Offline-friendly, idempotent via `as_of_ts` + `source_hash` per account.
 import hashlib
 import json
 import os
-from datetime import datetime, timezone
+from datetime import timezone
+from common.datetime import parse_iso8601
 from typing import Callable, List, Optional
 
 from prometheus_client import Counter, Gauge
@@ -40,9 +41,7 @@ def _parse_ts(val: str | None) -> Optional[datetime]:
         return None
     try:
         return (
-            datetime.fromisoformat(val.replace("Z", "+00:00"))
-            .astimezone(timezone.utc)
-            .replace(tzinfo=None)
+            parse_iso8601(val).replace(tzinfo=None)
         )
     except ValueError:
         return None
