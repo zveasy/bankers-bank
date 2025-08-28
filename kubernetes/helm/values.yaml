@@ -1,13 +1,18 @@
 # Values support envsubst; see `.env.example` for local configuration.
+ingress:
+  host: bankers-bank.local
+
 bank_connector:
   image: bank_connector:latest
   port: 8080
+  path: /
 
 enableAlerting: true
 
 treasury_orchestrator:
   image: treasury_orchestrator:latest
   port: 8000
+  path: /treasury
 
 quant_consumer:
   image: quant_consumer:latest

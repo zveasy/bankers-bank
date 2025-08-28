@@ -4,13 +4,20 @@ metadata:
   name: bankers-bank
 spec:
   rules:
-  # TODO: configure host and paths
-  - http:
+  - host: {{ .Values.ingress.host }}
+    http:
       paths:
-      - path: /
+      - path: {{ .Values.bank_connector.path }}
         pathType: Prefix
         backend:
           service:
             name: bank-connector
             port:
               number: {{ .Values.bank_connector.port }}
+      - path: {{ .Values.treasury_orchestrator.path }}
+        pathType: Prefix
+        backend:
+          service:
+            name: treasury-orchestrator
+            port:
+              number: {{ .Values.treasury_orchestrator.port }}
