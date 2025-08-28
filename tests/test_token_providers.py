@@ -1,13 +1,13 @@
-import os
 import asyncio
 from types import SimpleNamespace
 
 import httpx
 import pytest
 
+from common import secrets as secrets_module
 from integrations.finastra.auth import (
-    ClientCredentialsTokenProvider,
     AuthCodeTokenProvider,
+    ClientCredentialsTokenProvider,
 )
 
 
@@ -32,10 +32,7 @@ async def test_client_credentials_provider(monkeypatch):
         "FINA_TOKEN_URL": "https://example/token",
         "FINA_SCOPES_CC": "openid product",
     }
-    monkeypatch.setenv("FINA_CLIENT_ID", env["FINA_CLIENT_ID"])
-    monkeypatch.setenv("FINA_CLIENT_SECRET", env["FINA_CLIENT_SECRET"])
-    monkeypatch.setenv("FINA_TOKEN_URL", env["FINA_TOKEN_URL"])
-    monkeypatch.setenv("FINA_SCOPES_CC", env["FINA_SCOPES_CC"])
+    secrets_module.secrets.update(env)
 
     transport = _MockTransport({"access_token": "tok123", "expires_in": 60})
     orig_client = httpx.AsyncClient
@@ -67,8 +64,7 @@ async def test_authcode_provider(monkeypatch):
         "FINA_REFRESH_TOKEN": "r1",
         "FINA_SCOPES_AUTHCODE": "openid product",
     }
-    for k, v in env.items():
-        monkeypatch.setenv(k, v)
+    secrets_module.secrets.update(env)
 
     transport = _MockTransport(
         {"access_token": "tokABC", "refresh_token": "r2", "expires_in": 60}

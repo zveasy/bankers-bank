@@ -8,8 +8,8 @@ Account Information and Collateral APIs used for LTV calculations.
 Use the provided helper script:
 
 ```bash
-export FFDC_CLIENT_ID=<your-client-id>
-export FFDC_CLIENT_SECRET=<your-secret>
+echo '{"FFDC_CLIENT_ID":"<your-client-id>","FFDC_CLIENT_SECRET":"<your-secret>"}' > .secrets.json
+export SECRETS_PATH=$PWD/.secrets.json
 python scripts/fetch_token.py
 ```
 

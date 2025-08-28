@@ -2,6 +2,8 @@ import os
 
 import pytest
 
+from common import secrets as secrets_module
+
 
 def pytest_configure(config):
     """If pytest-socket is installed, disable sockets and allow localhost if supported."""
@@ -21,8 +23,14 @@ def pytest_configure(config):
 
 
 @pytest.fixture(autouse=True)
-def _api_token(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("API_TOKEN", "testtoken")
+def _secrets() -> None:
+    """Provide default secrets for tests via the secrets manager."""
+
+    secrets_module.secrets.set_override(
+        {"API_TOKENS": {"tester": "testtoken"}, "JWT_SECRET": "testsecret"}
+    )
+    yield
+    secrets_module.secrets.set_override({})
 
 
 # ---------------------------------------------------------------------------
