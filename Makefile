@@ -4,6 +4,9 @@ up:
 down:
 	docker compose down -v
 
+init-db:
+	python scripts/init_local_dbs.py
+
 helm-test:
 	helm lint kubernetes/helm
 
