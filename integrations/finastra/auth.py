@@ -6,17 +6,27 @@ can be added later without breaking callers.
 """
 from __future__ import annotations
 
-import os
 import logging
+import os
 from typing import Protocol, runtime_checkable
 
 from prometheus_client import Counter, Gauge
 
+from common.secrets import get_secret
+
 _LOG = logging.getLogger(__name__)
 
-_TOKENS_ISSUED = Counter("fin_oauth_tokens_issued_total", "OAuth tokens issued", ["provider"])
-_REFRESH_ERRORS = Counter("fin_oauth_refresh_errors_total", "OAuth token refresh errors", ["provider", "reason"])
-_TOKEN_EXPIRY_SEC = Gauge("fin_oauth_token_expiry_seconds", "Seconds until token expiry", ["provider"])
+_TOKENS_ISSUED = Counter(
+    "fin_oauth_tokens_issued_total", "OAuth tokens issued", ["provider"]
+)
+_REFRESH_ERRORS = Counter(
+    "fin_oauth_refresh_errors_total",
+    "OAuth token refresh errors",
+    ["provider", "reason"],
+)
+_TOKEN_EXPIRY_SEC = Gauge(
+    "fin_oauth_token_expiry_seconds", "Seconds until token expiry", ["provider"]
+)
 
 __all__ = [
     "TokenProvider",
@@ -39,6 +49,7 @@ class TokenProvider(Protocol):
 
 
 import time
+
 import httpx
 
 
@@ -46,7 +57,8 @@ class StaticTokenProvider:
     """Simple provider that returns a fixed token from env (or dummy)."""
 
     def __init__(self) -> None:
-        self._token = os.getenv("FINASTRA_STATIC_BEARER", "disabled")
+        # Loaded from secrets manager instead of plain environment variable
+        self._token = get_secret("FINASTRA_STATIC_BEARER", "disabled")
 
     async def token(self) -> str:  # type: ignore[override]
         return self._token
@@ -76,6 +88,7 @@ def get_token_provider() -> TokenProvider:
 # Live providers
 # ---------------------------------------------------------------------------
 
+
 class _BaseLiveProvider:
     """Shared refresh/caching logic."""
 
@@ -93,10 +106,10 @@ class ClientCredentialsTokenProvider(_BaseLiveProvider):
     """Implements OAuth2 Client Credentials flow (machine-to-machine)."""
 
     def __init__(self) -> None:
-        self._client_id = os.environ["FINA_CLIENT_ID"]
-        self._client_secret = os.environ["FINA_CLIENT_SECRET"]
-        self._token_url = os.environ["FINA_TOKEN_URL"]
-        self._scope = os.getenv("FINA_SCOPES_CC", "openid").strip()
+        self._client_id = get_secret("FINA_CLIENT_ID")
+        self._client_secret = get_secret("FINA_CLIENT_SECRET")
+        self._token_url = get_secret("FINA_TOKEN_URL")
+        self._scope = get_secret("FINA_SCOPES_CC", "openid").strip()
 
     async def token(self) -> str:  # type: ignore[override]
         cached = await self._cached()
@@ -116,7 +129,9 @@ class ClientCredentialsTokenProvider(_BaseLiveProvider):
         self._token = payload["access_token"]
         self._expires_at = time.time() + int(payload.get("expires_in", 1800))
         _TOKENS_ISSUED.labels("client_credentials").inc()
-        _TOKEN_EXPIRY_SEC.labels("client_credentials").set(self._expires_at - time.time())
+        _TOKEN_EXPIRY_SEC.labels("client_credentials").set(
+            self._expires_at - time.time()
+        )
         _LOG.debug("Issued client_credentials token; scope=%s", self._scope)
         return self._token
 
@@ -125,13 +140,13 @@ class AuthCodeTokenProvider(_BaseLiveProvider):
     """Uses a stored refresh token to mint new access tokens (Auth Code flow)."""
 
     def __init__(self) -> None:
-        self._client_id = os.environ["FINA_CLIENT_ID"]
-        self._client_secret = os.environ["FINA_CLIENT_SECRET"]
-        self._token_url = os.environ["FINA_TOKEN_URL"]
-        self._refresh_token = os.environ.get("FINA_REFRESH_TOKEN")
+        self._client_id = get_secret("FINA_CLIENT_ID")
+        self._client_secret = get_secret("FINA_CLIENT_SECRET")
+        self._token_url = get_secret("FINA_TOKEN_URL")
+        self._refresh_token = get_secret("FINA_REFRESH_TOKEN")
         if not self._refresh_token:
             raise RuntimeError("FINA_REFRESH_TOKEN not set for AuthCodeTokenProvider")
-        self._scope = os.getenv("FINA_SCOPES_AUTHCODE", "openid").strip()
+        self._scope = get_secret("FINA_SCOPES_AUTHCODE", "openid").strip()
 
     async def token(self) -> str:  # type: ignore[override]
         cached = await self._cached()
