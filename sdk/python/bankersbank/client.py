@@ -1,12 +1,14 @@
 import os
+import logging
 from typing import Any, Dict
 
 import requests
 
+logger = logging.getLogger(__name__)
+
 try:
     # Reuse the mock API's collateral registry when available
-    from mocks.mock_finastra_api import \
-        collateral_registry as _COLLATERAL_REGISTRY
+    from mocks.mock_finastra_api import collateral_registry as _COLLATERAL_REGISTRY
 except Exception:  # pragma: no cover - fallback for production envs
     _COLLATERAL_REGISTRY: list[dict] = []
 
@@ -43,8 +45,8 @@ class BankersBankClient:
         params = {"accountContext": account_context}
         kwargs = {"verify": self.verify} if self.verify is not True else {}
         resp = requests.get(url, params=params, headers=self._headers(), **kwargs)
-        print("Status:", resp.status_code)
-        print("Content:", resp.text)
+        logger.debug("Status: %s", resp.status_code)
+        logger.debug("Content: %s", resp.text)
         resp.raise_for_status()
         return resp.json()
 
@@ -61,8 +63,8 @@ class BankersBankClient:
             )
         kwargs = {"verify": self.verify} if self.verify is not True else {}
         resp = requests.get(url, headers=self._headers(), **kwargs)
-        print("Status:", resp.status_code)
-        print("Content:", resp.text)
+        logger.debug("Status: %s", resp.status_code)
+        logger.debug("Content: %s", resp.text)
         resp.raise_for_status()
         return resp.json()
 
@@ -92,16 +94,16 @@ class BankersBankClient:
     def add_collateral(self, collateral_data):
         url = f"{self.base_url}/collateral"
         resp = requests.post(url, json=collateral_data, headers=self._headers())
-        print(f"Status: {resp.status_code}")
-        print(f"Content: {resp.text}")
+        logger.debug("Status: %s", resp.status_code)
+        logger.debug("Content: %s", resp.text)
         resp.raise_for_status()
         return resp.json()
 
     def get_collateral(self):
         url = f"{self.base_url}/collateral"
         resp = requests.get(url, headers=self._headers())
-        print(f"Status: {resp.status_code}")
-        print(f"Content: {resp.text}")
+        logger.debug("Status: %s", resp.status_code)
+        logger.debug("Content: %s", resp.text)
         resp.raise_for_status()
         return resp.json()
 

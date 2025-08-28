@@ -128,6 +128,17 @@ print(accounts)
 
 ```
 
+### Enable SDK logging
+
+The SDK emits debug-level logs with HTTP status codes and responses. To
+surface these logs in your application, configure Python's logging module:
+
+```python
+import logging
+
+logging.basicConfig(level=logging.DEBUG)
+```
+
 ## Mock API Endpoints
 
 > For local dev/testing without live Finastra sandbox, see:
