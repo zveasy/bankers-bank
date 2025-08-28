@@ -1,1 +1,1 @@
-"""Test utilities package for integration-client"""
+"""Test utilities package for integration_client"""

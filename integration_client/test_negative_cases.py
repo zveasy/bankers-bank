@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 import requests
-from test_helpers import clear_collateral_registry
+from .test_helpers import clear_collateral_registry
 
 from tests.test_helpers import REQUESTS_AVAILABLE
 

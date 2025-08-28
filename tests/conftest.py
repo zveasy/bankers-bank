@@ -54,5 +54,5 @@ def pytest_collection_modifyitems(config, items):
     )
     for item in items:
         path_str = str(item.fspath)
-        if "integration-client" in path_str or "integration_client" in path_str:
+        if "integration_client" in path_str:
             item.add_marker(skip_marker)
