@@ -4,7 +4,8 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import Numeric
+from sqlalchemy import Numeric, UniqueConstraint
+from sqlalchemy.types import JSON
 from sqlmodel import Column, DateTime, Field, SQLModel, func, Index
 
 __all__ = [

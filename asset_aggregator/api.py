@@ -26,6 +26,8 @@ from asset_aggregator.syncers.finastra_accounts import FinastraAccountsSyncer
 from asset_aggregator.syncers.finastra_balances import FinastraBalancesSyncer
 from integrations.finastra.accounts_client import AccountsClient
 from integrations.finastra.balances_client import BalancesClient
+from asset_aggregator.syncers.finastra_transactions import FinastraTransactionsSyncer
+from integrations.finastra.account_info_us_client import AccountInfoUSClient
 
 app = FastAPI()
 init_db()
@@ -183,4 +185,26 @@ async def run_balances_sync(payload: _BalancesPayload | None = None, _: None = D
     async with BalancesClient() as client:
         syncer = FinastraBalancesSyncer(client=client, session_factory=lambda: Session(engine))
         cnt = await syncer.run_once(ids)
+    return {"ok": True, "processed": cnt}
+
+
+# --------------------------------------------------------------------------------------
+# Transactions sync trigger
+# --------------------------------------------------------------------------------------
+
+class _TransactionsPayload(BaseModel):
+    accountIds: list[str]
+    since: str | None = None  # ISO yyyy-mm-dd
+
+
+@app.post("/sync/transactions", response_model=dict)
+async def run_transactions_sync(
+    payload: _TransactionsPayload,
+    _: None = Depends(require_token),
+):
+    async with AccountInfoUSClient() as client:
+        syncer = FinastraTransactionsSyncer(
+            client=client, session_factory=lambda: Session(engine)
+        )
+        cnt = await syncer.run_once(payload.accountIds, since=payload.since)
     return {"ok": True, "processed": cnt}

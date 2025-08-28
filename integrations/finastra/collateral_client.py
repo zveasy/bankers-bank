@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 from typing import List, Optional, Sequence
+from datetime import datetime
 from decimal import Decimal
+from common.datetime import parse_iso8601
 
 import httpx
 from pydantic import BaseModel, Field
@@ -21,7 +23,7 @@ class CollateralClient:
     """Typed async client for collateral endpoints."""
 
     def __init__(self, http: Optional[FinastraHTTP] = None):
-        self._http = http or FinastraHTTP()
+        self._http = http or FinastraHTTP(product="collateral")
 
     async def list_collaterals(
         self, *, page_token: str | None = None, page_size: int = 100
@@ -37,14 +39,12 @@ class CollateralClient:
 
     @staticmethod
     def _parse_ts(val):
-        from datetime import datetime, timezone
         if not val:
             return None
         if isinstance(val, datetime):
             return val
         try:
-            dt = datetime.fromisoformat(val.replace("Z", "+00:00"))
-            return dt.astimezone(timezone.utc).replace(tzinfo=None)
+            return parse_iso8601(val).replace(tzinfo=None)
         except ValueError:
             return None
 

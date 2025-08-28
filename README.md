@@ -35,6 +35,20 @@ make gen-sdk
 
 ### Configuration
 
+#### Finastra OAuth setup
+1. Copy `.env.example` to `.env` and fill in `FINA_CLIENT_ID` / `FINA_CLIENT_SECRET` from the Finastra portal.
+2. Adjust scope or flow flags if you enable new products.
+3. The optional `FINA_TOKEN_SKEW_SECONDS` (default `30`) refreshes tokens *N* seconds before expiry to avoid edge-case 401s.
+4. **Never commit your real `.env`.** CI picks secrets from GitHub Actions `Secrets`/`Variables` as documented.
+
+Minimal local example:
+```bash
+cp .env.example .env
+export FINA_CLIENT_ID=xxxx FINA_CLIENT_SECRET=yyyy
+python -m asset_aggregator.main  # provider auto-selects grant type per slice
+```
+
+
 Copy `.env.example` to `.env` and set your database credentials. Docker Compose
 and the Helm chart reference these variables at runtime.
 

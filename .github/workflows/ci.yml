@@ -121,8 +121,32 @@ jobs:
   test-python-poetry:
     runs-on: ubuntu-latest
     steps:
-      - name: No-op
-        run: echo "Poetry workflow placeholder"
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | python - --version 1.8.2
+          echo "PATH=$HOME/.local/bin:$PATH" >> "$GITHUB_ENV"
+
+      - name: Cache Poetry virtualenv
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pypoetry
+          key: poetry-${{ runner.os }}-${{ hashFiles('pyproject.toml') }}
+
+      - name: Install deps
+        run: poetry install --no-interaction --no-root
+
+      - name: Run python tests
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+          BANKERSBANK_INTEGRATION: "0"
+        run: poetry run pytest -q
 
   # ────────────────────────────────
   # Observability lint: alert rules & dashboards
@@ -480,6 +504,34 @@ jobs:
         env:
           PYTHONPATH: ${{ github.workspace }}
         run: python scripts/smoke_finastra_balances.py
+
+  # ────────────────────────────────
+  # Finastra Transactions offline smoke
+  # ────────────────────────────────
+  smoke-transactions-offline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: "Guard: no .env committed"
+        run: |
+          set -euo pipefail
+          git ls-files -z | grep -zE '(^|/)\.env(\..*)?$' | tr -d '\0' | \
+            grep -v '\.env\.example$' && {
+              echo "::error::.env files must not be committed"; exit 1; } || true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install smoke deps
+        run: python -m pip install --upgrade pip httpx sqlmodel fastapi prometheus-client
+
+      - name: Run transactions smoke
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: python scripts/smoke_finastra_transactions.py
 
   compose-smoke-liquidity:
     needs: check-secrets

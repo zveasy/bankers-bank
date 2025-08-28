@@ -7,7 +7,8 @@ Offline-safe, idempotent (external_updated_ts + source_hash), Prom metrics.
 import hashlib
 import json
 import os
-from datetime import datetime, timezone
+from datetime import timezone
+from common.datetime import parse_iso8601
 from typing import Callable, List
 
 from prometheus_client import Counter, Gauge
@@ -39,7 +40,7 @@ def _calc_hash(src: dict) -> str:
 def _should_update(incoming: Account, existing: AccountRecord, new_hash: str) -> bool:
     if incoming.updated:
         try:
-            inc_ts = datetime.fromisoformat(incoming.updated.replace("Z", "+00:00")).astimezone(timezone.utc).replace(tzinfo=None)
+            inc_ts = parse_iso8601(incoming.updated).replace(tzinfo=None)
         except ValueError:
             inc_ts = None
     else:
@@ -72,7 +73,7 @@ def _upsert_batch(sess: Session, rows: List[Account]):
                 existing.type = acc.type
                 existing.status = acc.status
                 existing.external_updated_ts = (
-                    datetime.fromisoformat(acc.updated.replace("Z", "+00:00")).astimezone(timezone.utc).replace(tzinfo=None)
+                    parse_iso8601(acc.updated).replace(tzinfo=None)
                     if acc.updated
                     else None
                 )
@@ -92,7 +93,7 @@ def _upsert_batch(sess: Session, rows: List[Account]):
                     type=acc.type,
                     status=acc.status,
                     external_updated_ts=(
-                        datetime.fromisoformat(acc.updated.replace("Z", "+00:00")).astimezone(timezone.utc).replace(tzinfo=None)
+                        parse_iso8601(acc.updated).replace(tzinfo=None)
                         if acc.updated
                         else None
                     ),

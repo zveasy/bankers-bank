@@ -1,0 +1,43 @@
+{
+  "title": "Finastra HTTP Errors",
+  "timezone": "browser",
+  "panels": [
+    {
+      "type": "graph",
+      "title": "fin_http_errors_total by product & code (rate 5m)",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "rate(fin_http_errors_total[5m])",
+          "legendFormat": "{{product}} {{code}}"
+        }
+      ],
+      "lines": true,
+      "linewidth": 1,
+      "interval": ""
+    },
+    {
+      "type": "stat",
+      "title": "401 → refresh success rate (1h)",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum(increase(fin_http_errors_total{code='401'}[1h])) / sum(increase(_TOKENS_ISSUED[1h])) * 100",
+          "legendFormat": "401→refresh %"
+        }
+      ],
+      "unit": "percent",
+      "colorMode": "value",
+      "thresholds": {
+        "mode": "percentage",
+        "steps": [
+          { "color": "red", "value": 50 },
+          { "color": "green", "value": null }
+        ]
+      }
+    }
+  ],
+  "schemaVersion": 35,
+  "version": 1,
+  "uid": "fin_http"
+}
