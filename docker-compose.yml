@@ -23,7 +23,8 @@ services:
     restart: unless-stopped
 
   redpanda:
-    image: redpandadata/redpanda:latest
+    # Pin Redpanda to a specific version to avoid unexpected upgrades
+    image: redpandadata/redpanda:v23.3.2
     command: >
       redpanda start \
         --overprovisioned \
@@ -62,7 +63,7 @@ services:
   # Mock external bank (for /sweep-order)
   # ────────────────────────────────
   mock_bank:
-    image: mccutchen/go-httpbin:latest   # lightweight httpbin
+    image: mccutchen/go-httpbin:v2.10.0   # lightweight httpbin, pinned
     expose:
       - "8080"
     restart: unless-stopped
@@ -226,7 +227,8 @@ services:
         condition: service_started
 
   grafana:
-    image: grafana/grafana:latest
+    # Pin Grafana dashboard version
+    image: grafana/grafana:10.4.3
     ports: ["127.0.0.1:3000:3000"]
     environment:
       GF_AUTH_ANONYMOUS_ENABLED: "false"
