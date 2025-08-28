@@ -16,8 +16,8 @@ run this command in terminal: uvicorn mocks.mock_finastra_api:app --reload
 
 ### 3. Run these commands in another terminal
 
-python -m integration-client.test_sdk
-python -m integration-client.test_negative_cases
+python -m integration_client.test_sdk
+python -m integration_client.test_negative_cases
 
 ## Base URL
 
