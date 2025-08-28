@@ -36,7 +36,7 @@ app.mount("/metrics", make_asgi_app())
 
 
 class SnapshotRequest(BaseModel):
-    bank_id: str | None = none
+    bank_id: str | None = None
 
 
 @app.get("/healthz", response_model=dict)
