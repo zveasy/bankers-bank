@@ -154,4 +154,9 @@ logging.basicConfig(level=logging.DEBUG)
 Detailed instructions for obtaining OAuth tokens and calling the Finastra
 sandbox APIs are available in `docs/finastra_api.md`.
 
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
 Last updated: 2025-06-27
+
