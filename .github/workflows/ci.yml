@@ -189,6 +189,9 @@ jobs:
     outputs:
       have_pg: ${{ steps.determine.outputs.have_pg }}
     steps:
+      - name: Setup CI env
+        run: cp .env.ci .env
+
       - id: determine
         env:
           POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
@@ -217,34 +220,9 @@ jobs:
             grep -v '\.env\.example$' && {
               echo "::error::.env files must not be committed"; exit 1; } || true
 
-      - name: "Guard: required secrets present"
-        env:
-          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
-          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
-          GF_ADMIN_USER: ${{ secrets.GF_ADMIN_USER }}
-          GF_ADMIN_PASSWORD: ${{ secrets.GF_ADMIN_PASSWORD }}
-        run: |
-          for v in POSTGRES_USER POSTGRES_PASSWORD POSTGRES_DB GF_ADMIN_USER GF_ADMIN_PASSWORD; do
-            [ -n "${!v}" ] || { echo "::error::Missing secret $v"; exit 1; }
-          done
+      - name: Setup CI env
+        run: cp .env.ci .env
 
-      - name: Create ephemeral env file
-        env:
-          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
-          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
-          GF_ADMIN_USER: ${{ secrets.GF_ADMIN_USER }}
-          GF_ADMIN_PASSWORD: ${{ secrets.GF_ADMIN_PASSWORD }}
-        run: |
-          umask 077
-          cat > .env <<EOF
-          POSTGRES_USER=$POSTGRES_USER
-          POSTGRES_PASSWORD=$POSTGRES_PASSWORD
-          POSTGRES_DB=$POSTGRES_DB
-          GF_ADMIN_USER=$GF_ADMIN_USER
-          GF_ADMIN_PASSWORD=$GF_ADMIN_PASSWORD
-          EOF
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -346,28 +324,9 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: "Guard: required secrets present"
-        env:
-          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
-          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
-        run: |
-          for v in POSTGRES_USER POSTGRES_PASSWORD POSTGRES_DB; do
-            [ -n "${!v}" ] || { echo "::error::Missing secret $v"; exit 1; }
-          done
+      - name: Setup CI env
+        run: cp .env.ci .env
 
-      - name: Create ephemeral env file
-        env:
-          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
-          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
-        run: |
-          umask 077
-          cat > .env <<EOF
-          POSTGRES_USER=$POSTGRES_USER
-          POSTGRES_PASSWORD=$POSTGRES_PASSWORD
-          POSTGRES_DB=$POSTGRES_DB
-          EOF
 
       - name: Build images
         run: |
@@ -551,28 +510,9 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: "Guard: required secrets present"
-        env:
-          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
-          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
-        run: |
-          for v in POSTGRES_USER POSTGRES_PASSWORD POSTGRES_DB; do
-            [ -n "${!v}" ] || { echo "::error::Missing secret $v"; exit 1; }
-          done
+      - name: Setup CI env
+        run: cp .env.ci .env
 
-      - name: Create ephemeral env file
-        env:
-          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
-          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
-        run: |
-          umask 077
-          cat > .env <<EOF
-          POSTGRES_USER=$POSTGRES_USER
-          POSTGRES_PASSWORD=$POSTGRES_PASSWORD
-          POSTGRES_DB=$POSTGRES_DB
-          EOF
 
       - name: Build quantengine
         run: |

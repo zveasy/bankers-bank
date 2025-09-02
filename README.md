@@ -156,7 +156,7 @@ sandbox APIs are available in `docs/finastra_api.md`.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+License **pending legal review** – no license is currently granted. See [`LICENSE.draft`](LICENSE.draft) for the proposed MIT terms.
 
 Last updated: 2025-06-27
 
