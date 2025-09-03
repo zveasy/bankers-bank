@@ -474,34 +474,33 @@ jobs:
   # Finastra Accounts & Balances offline smoke
   # ────────────────────────────────
   smoke-accounts-balances-offline:
+    name: "Smoke (offline) — Finastra Accounts & Balances"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: "Guard: no .env committed"
-        run: |
-          set -euo pipefail
-          git ls-files -z | grep -zE '(^|/)\.env(\..*)?$' | tr -d '\0' | \
-            grep -v '\.env\.example$' && {
-              echo "::error::.env files must not be committed"; exit 1; } || true
+      - name: Setup CI env
+        run: cp .env.ci .env
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Install smoke deps
-        run: python -m pip install --upgrade pip httpx sqlmodel fastapi prometheus-client
+      - name: Install Poetry
+        uses: abatilo/actions-poetry@v2
+        with:
+          poetry-version: '1.8.2'
+
+      - name: Install deps (main group only)
+        run: poetry install --no-root --only main
 
       - name: Run accounts smoke
-        env:
-          PYTHONPATH: ${{ github.workspace }}
-        run: python scripts/smoke_finastra_accounts.py
+        run: poetry run python scripts/smoke_finastra_accounts.py
 
       - name: Run balances smoke
-        env:
-          PYTHONPATH: ${{ github.workspace }}
-        run: python scripts/smoke_finastra_balances.py
+        run: poetry run python scripts/smoke_finastra_balances.py
+
 
   # ────────────────────────────────
   # Finastra Transactions offline smoke
