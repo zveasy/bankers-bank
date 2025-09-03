@@ -292,7 +292,7 @@ jobs:
           python-version: '3.11'
 
       - name: Install smoke deps
-        run: python -m pip install --upgrade pip requests
+        run: python -m pip install --upgrade pip python-dateutil requests -e .
 
       - name: Run credit smoke
         env:
@@ -406,7 +406,7 @@ jobs:
           python-version: '3.11'
 
       - name: Install smoke deps
-        run: python -m pip install --upgrade pip httpx fastapi prometheus-client sqlmodel
+        run: python -m pip install --upgrade pip python-dateutil httpx fastapi prometheus-client sqlmodel -e .
 
       - name: Run payments smoke
         env:
@@ -608,7 +608,7 @@ jobs:
           python-version: '3.11'
 
       - name: Install smoke deps
-        run: python -m pip install --upgrade pip requests
+        run: python -m pip install --upgrade pip python-dateutil requests -e .
 
       - name: Run liquidity smoke
         env:
