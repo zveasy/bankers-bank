@@ -166,22 +166,18 @@ jobs:
 
       - name: Lint (ruff if present)
         run: |
-          if poetry run python - << 'PY'
-import importlib, sys
-sys.exit(0 if importlib.util.find_spec("ruff") else 1)
-PY
-          then poetry run ruff check .
-          else echo "ruff not installed; skipping"
+          if poetry run python -c "import importlib.util, sys; sys.exit(0 if importlib.util.find_spec('ruff') else 1)"; then
+            poetry run ruff check .
+          else
+            echo 'ruff not installed; skipping'
           fi
 
       - name: Type check (mypy if present)
         run: |
-          if poetry run python - << 'PY'
-import importlib, sys
-sys.exit(0 if importlib.util.find_spec("mypy") else 1)
-PY
-          then poetry run mypy .
-          else echo "mypy not installed; skipping"
+          if poetry run python -c "import importlib.util, sys; sys.exit(0 if importlib.util.find_spec('mypy') else 1)"; then
+            poetry run mypy .
+          else
+            echo 'mypy not installed; skipping'
           fi
 
       - name: Run python tests
