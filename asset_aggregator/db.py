@@ -33,7 +33,7 @@ class AssetSnapshot(SQLModel, table=True):
 
     # Allow multiple snapshots for same bank_id & ts during tests; keep non-unique index for query perf.
     __table_args__ = (
-        Index("ix_asset_snapshots_bank_ts", "bank_id", "ts"),
+        {"extend_existing": True},
     )
 
 
@@ -63,6 +63,7 @@ class CollateralRegistry(SQLModel, table=True):
 
     __table_args__ = (
         UniqueConstraint("bank_id", "collateral_id", name="collateral_registry_uniq"),
+        {"extend_existing": True},
     )
 
 
@@ -73,7 +74,10 @@ class LTVHistory(SQLModel, table=True):
     bank_id: str = Field(sa_column=Column("bank_id", String, nullable=False))
     ts: datetime = Field(sa_column=Column("ts", DateTime, nullable=False))
     ltv: Optional[float] = Field(default=None, sa_column=Column("ltv", Float))
-    __table_args__ = (UniqueConstraint("bank_id", "ts", name="ltv_history_uniq"),)
+    __table_args__ = (
+        UniqueConstraint("bank_id", "ts", name="ltv_history_uniq"),
+        {"extend_existing": True},
+    )
 
 
 # ---- helper upsert ----

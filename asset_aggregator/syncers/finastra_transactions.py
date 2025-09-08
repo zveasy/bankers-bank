@@ -37,6 +37,7 @@ def _calc_hash(src: dict) -> str:
 
 
 def _upsert_batch(sess: Session, rows: List[Transaction]):
+    # Tables assumed pre-created by caller (see FinastraTransactionsSyncer.run_once)
     created = updated = skipped = 0
     now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
     for tx in rows:
@@ -121,6 +122,14 @@ class FinastraTransactionsSyncer:
         self._session_factory = session_factory
 
     async def run_once(self, account_ids: list[str], *, since: str | None = None):
+        """Sync transactions for the supplied account IDs once.
+        Makes sure tables are created on the bound engine before queries –
+        crucial for unit tests that hand in an isolated SQLite engine.
+        """
+        # ensure tables exist for this engine
+        with self._session_factory() as _s:
+            SQLModel.metadata.create_all(_s.get_bind(), checkfirst=True)
+
         processed = 0
         for acct_id in account_ids:
             async for page in self._client.list_transactions(acct_id, from_date=since):

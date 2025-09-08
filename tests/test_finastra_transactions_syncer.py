@@ -40,7 +40,6 @@ def _page(items: List[dict]):
 @pytest.mark.anyio
 async def test_transactions_syncer_create_update_skip(tmp_path):
     engine = create_engine(f"sqlite:///{tmp_path}/tx.db")
-    SQLModel.metadata.create_all(engine)
 
     acct_id = "acc-1"
     t0 = datetime.now(timezone.utc).replace(microsecond=0)
@@ -57,6 +56,9 @@ async def test_transactions_syncer_create_update_skip(tmp_path):
     transport = httpx.MockTransport(handler)
     http = FinastraHTTP(base_url="https://api.mock", token_provider=_FakeToken(), transport=transport)
     client = AccountInfoUSClient(http=http)
+
+    # ensure tables exist after models imported
+    SQLModel.metadata.create_all(engine)
 
     syncer = FinastraTransactionsSyncer(client=client, session_factory=lambda: Session(engine))
 

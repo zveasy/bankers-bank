@@ -51,6 +51,8 @@ def app_client():
     app.dependency_overrides[api_module.get_session] = _get_session  # type: ignore[attr-defined]
     app.dependency_overrides[api_module.get_provider] = lambda: StubProvider()  # type: ignore[attr-defined]
 
+    # ensure all models tables exist after all imports
+    SQLModel.metadata.create_all(engine)
     return TestClient(app), engine
 
 

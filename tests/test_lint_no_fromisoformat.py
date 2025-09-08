@@ -10,7 +10,7 @@ import pathlib
 def _project_files():
     root = pathlib.Path(__file__).resolve().parent.parent
     for path in root.rglob("*.py"):
-        if "tests" in path.parts:
+        if any(part in path.parts for part in ("tests", "site-packages", "dist-packages", ".venv")):
             continue  # ignore test code itself
         yield path
 
