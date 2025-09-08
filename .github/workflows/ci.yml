@@ -23,6 +23,7 @@ jobs:
           git ls-files -z | grep -zE '(^|/)\.env(\..*)?$' | tr -d '\0' | \
             grep -v '\.env\.example$' && {
               echo "::error::.env files must not be committed"; exit 1; } || true
+
       - id: check
         run: |
           if [ -f services/ledger/go.mod ]; then
@@ -136,16 +137,71 @@ jobs:
       - name: Cache Poetry virtualenv
         uses: actions/cache@v4
         with:
-          path: ~/.cache/pypoetry
+          path: |
+            ~/.cache/pypoetry
+            ~/.local/share/pypoetry
           key: poetry-${{ runner.os }}-${{ hashFiles('pyproject.toml') }}
 
-      - name: Install deps
-        run: poetry install --no-interaction --no-root
+      - name: Install deps (with test extras)
+        run: poetry install --no-interaction --no-root --with test
+
+      - name: Prepare test DB schema (alembic if present; else metadata)
+        env:
+          BANKERSBANK_DB_URL: sqlite:///test.db
+        run: |
+          poetry run python - <<'PY'
+          import os, pathlib
+          db_url = os.environ.get('BANKERSBANK_DB_URL') or os.environ.get('DATABASE_URL') or 'sqlite:///test.db'
+          print(f"DB URL: {db_url}")
+          try:
+              from sqlalchemy import create_engine
+          except Exception:
+              print("SQLAlchemy not available; skipping schema prep")
+              raise SystemExit(0)
+          engine = create_engine(db_url, future=True)
+          # Prefer alembic if config exists
+          if pathlib.Path('alembic.ini').exists():
+              try:
+                  from alembic.config import Config
+                  from alembic import command
+                  cfg = Config('alembic.ini')
+                  cfg.set_main_option('sqlalchemy.url', db_url)
+                  command.upgrade(cfg, 'head')
+                  print('Alembic migrations applied.')
+              except Exception as e:
+                  print('Alembic failed, falling back to metadata:', e)
+                  try:
+                      from bankers_bank.db import Base
+                  except Exception:
+                      try:
+                          from bankers_bank.common.db import Base
+                      except Exception:
+                          Base = None
+                  if Base:
+                      Base.metadata.create_all(engine)
+                      print('Created tables via Base.metadata')
+                  else:
+                      print('No Base metadata found; continuing anyway.')
+          else:
+              try:
+                  from bankers_bank.db import Base
+              except Exception:
+                  try:
+                      from bankers_bank.common.db import Base
+                  except Exception:
+                      Base = None
+              if Base:
+                  Base.metadata.create_all(engine)
+                  print('Created tables via Base.metadata')
+              else:
+                  print('No Base metadata found; continuing.')
+          PY
 
       - name: Run python tests
         env:
           PYTHONPATH: ${{ github.workspace }}
           BANKERSBANK_INTEGRATION: "0"
+          BANKERSBANK_DB_URL: sqlite:///test.db
         run: poetry run pytest -q
 
   # ────────────────────────────────
@@ -189,10 +245,18 @@ jobs:
     outputs:
       have_pg: ${{ steps.determine.outputs.have_pg }}
     steps:
+      - uses: actions/checkout@v4
+
+      - name: Write .env.ci from secret (if provided)
+        run: |
+          if [ ! -f .env.ci ] && [ -n "${{ secrets.ENV_CI_BASE64 }}" ]; then
+            echo "${{ secrets.ENV_CI_BASE64 }}" | base64 -d > .env.ci
+          fi
+
       - name: Setup CI env
         run: |
           if [ ! -f .env.ci ]; then
-            echo "::error::missing .env.ci at repo root"; exit 1
+            echo "::error::missing .env.ci at repo root and ENV_CI_BASE64 secret not set"; exit 1
           fi
           cp .env.ci .env
           # safety invariants – ensure required placeholders exist and no real secrets snuck in
@@ -233,13 +297,18 @@ jobs:
             grep -v '\.env\.example$' && {
               echo "::error::.env files must not be committed"; exit 1; } || true
 
+      - name: Write .env.ci from secret (if provided)
+        run: |
+          if [ ! -f .env.ci ] && [ -n "${{ secrets.ENV_CI_BASE64 }}" ]; then
+            echo "${{ secrets.ENV_CI_BASE64 }}" | base64 -d > .env.ci
+          fi
+
       - name: Setup CI env
         run: |
           if [ ! -f .env.ci ]; then
             echo "::error::missing .env.ci at repo root"; exit 1
           fi
           cp .env.ci .env
-          # safety invariants – ensure required placeholders exist and no real secrets snuck in
           req_vars=(POSTGRES_USER POSTGRES_PASSWORD POSTGRES_DB GF_ADMIN_USER GF_ADMIN_PASSWORD)
           for k in "${req_vars[@]}"; do
             v="$(grep -E "^$k=" .env.ci | cut -d= -f2-)"
@@ -248,7 +317,6 @@ jobs:
           if grep -Ei 'client_secret|refresh_token|api[_-]?key|bearer[[:space:]]+[A-Za-z0-9._-]+' .env.ci; then
             echo "::error::.env.ci appears to contain a secret-like value"; exit 1
           fi
-
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -292,7 +360,7 @@ jobs:
           python-version: '3.11'
 
       - name: Install smoke deps
-        run: python -m pip install --upgrade pip requests
+        run: python -m pip install --upgrade pip requests python-dateutil
 
       - name: Run credit smoke
         env:
@@ -347,8 +415,11 @@ jobs:
             grep -v '\.env\.example$' && {
               echo "::error::.env files must not be committed"; exit 1; } || true
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Write .env.ci from secret (if provided)
+        run: |
+          if [ ! -f .env.ci ] && [ -n "${{ secrets.ENV_CI_BASE64 }}" ]; then
+            echo "${{ secrets.ENV_CI_BASE64 }}" | base64 -d > .env.ci
+          fi
 
       - name: Setup CI env
         run: |
@@ -356,7 +427,6 @@ jobs:
             echo "::error::missing .env.ci at repo root"; exit 1
           fi
           cp .env.ci .env
-          # safety invariants – ensure required placeholders exist and no real secrets snuck in
           req_vars=(POSTGRES_USER POSTGRES_PASSWORD POSTGRES_DB GF_ADMIN_USER GF_ADMIN_PASSWORD)
           for k in "${req_vars[@]}"; do
             v="$(grep -E "^$k=" .env.ci | cut -d= -f2-)"
@@ -366,6 +436,8 @@ jobs:
             echo "::error::.env.ci appears to contain a secret-like value"; exit 1
           fi
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Build images
         run: |
@@ -406,14 +478,13 @@ jobs:
           python-version: '3.11'
 
       - name: Install smoke deps
-        run: python -m pip install --upgrade pip httpx fastapi prometheus-client sqlmodel
+        run: python -m pip install --upgrade pip httpx fastapi prometheus-client sqlmodel python-dateutil
 
       - name: Run payments smoke
         env:
           PYTHONPATH: ${{ github.workspace }}
           BANK_API_URL: http://127.0.0.1:8080/post
         run: python scripts/smoke_payments.py
-
 
       - name: Dump logs on failure
         if: failure()
@@ -437,11 +508,6 @@ jobs:
         if: always()
         run: rm -f .env .env.ci
 
-      
-  # ────────────────────────────────
-  # Liquidity stack smoke with quantengine
-  # ────────────────────────────────
-  
   # ────────────────────────────────
   # Finastra Collateral offline smoke
   # ────────────────────────────────
@@ -463,14 +529,14 @@ jobs:
           python-version: '3.11'
 
       - name: Install smoke deps
-        run: python -m pip install --upgrade pip httpx sqlmodel fastapi prometheus-client
+        run: python -m pip install --upgrade pip httpx sqlmodel fastapi prometheus-client python-dateutil
 
       - name: Run collateral smoke
         env:
           PYTHONPATH: ${{ github.workspace }}
         run: python scripts/smoke_finastra_collateral.py --offline
 
-    # ────────────────────────────────
+  # ────────────────────────────────
   # Finastra Accounts & Balances offline smoke
   # ────────────────────────────────
   smoke-accounts-balances-offline:
@@ -478,6 +544,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Write .env.ci from secret (if provided)
+        run: |
+          if [ ! -f .env.ci ] && [ -n "${{ secrets.ENV_CI_BASE64 }}" ]; then
+            echo "${{ secrets.ENV_CI_BASE64 }}" | base64 -d > .env.ci
+          fi
 
       - name: Setup CI env
         run: cp .env.ci .env
@@ -496,11 +568,14 @@ jobs:
         run: poetry install --no-root --only main
 
       - name: Run accounts smoke
-        run: poetry run python scripts/smoke_finastra_accounts.py
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: poetry run python scripts/smoke_finastra_accounts.py --offline
 
       - name: Run balances smoke
-        run: poetry run python scripts/smoke_finastra_balances.py
-
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: poetry run python scripts/smoke_finastra_balances.py --offline
 
   # ────────────────────────────────
   # Finastra Transactions offline smoke
@@ -523,13 +598,16 @@ jobs:
           python-version: '3.11'
 
       - name: Install smoke deps
-        run: python -m pip install --upgrade pip httpx sqlmodel fastapi prometheus-client
+        run: python -m pip install --upgrade pip httpx sqlmodel fastapi prometheus-client python-dateutil
 
       - name: Run transactions smoke
         env:
           PYTHONPATH: ${{ github.workspace }}
-        run: python scripts/smoke_finastra_transactions.py
+        run: python scripts/smoke_finastra_transactions.py --offline
 
+  # ────────────────────────────────
+  # Liquidity stack smoke with quantengine
+  # ────────────────────────────────
   compose-smoke-liquidity:
     needs: check-secrets
     if: ${{ needs.check-secrets.outputs.have_pg == 'true' }}
@@ -545,8 +623,11 @@ jobs:
             grep -v '\.env\.example$' && {
               echo "::error::.env files must not be committed"; exit 1; } || true
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Write .env.ci from secret (if provided)
+        run: |
+          if [ ! -f .env.ci ] && [ -n "${{ secrets.ENV_CI_BASE64 }}" ]; then
+            echo "${{ secrets.ENV_CI_BASE64 }}" | base64 -d > .env.ci
+          fi
 
       - name: Setup CI env
         run: |
@@ -554,7 +635,6 @@ jobs:
             echo "::error::missing .env.ci at repo root"; exit 1
           fi
           cp .env.ci .env
-          # safety invariants – ensure required placeholders exist and no real secrets snuck in
           req_vars=(POSTGRES_USER POSTGRES_PASSWORD POSTGRES_DB GF_ADMIN_USER GF_ADMIN_PASSWORD)
           for k in "${req_vars[@]}"; do
             v="$(grep -E "^$k=" .env.ci | cut -d= -f2-)"
@@ -564,6 +644,8 @@ jobs:
             echo "::error::.env.ci appears to contain a secret-like value"; exit 1
           fi
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Build quantengine
         run: |
@@ -607,13 +689,12 @@ jobs:
           python-version: '3.11'
 
       - name: Install smoke deps
-        run: python -m pip install --upgrade pip requests
+        run: python -m pip install --upgrade pip requests python-dateutil
 
       - name: Run liquidity smoke
         env:
           QUANT_URL: http://127.0.0.1:9100
         run: python scripts/smoke_liquidity.py
-
 
       - name: Dump logs on failure
         if: failure()
@@ -637,7 +718,6 @@ jobs:
         if: always()
         run: rm -f .env .env.ci
 
-      
       - name: Teardown
         if: always()
         run: |
@@ -648,4 +728,3 @@ jobs:
             docker compose --env-file .env down -v || docker compose down -v
           else
             docker compose down -v || true
-          fi
