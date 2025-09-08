@@ -652,7 +652,6 @@ jobs:
                   try:
                       with urllib.request.urlopen(url+'/readyz', timeout=2) as r:
                           if r.status == 200)
-:
                               print('service healthy')
                               sys.exit(0)
                   except Exception:
