@@ -50,6 +50,9 @@ def _calc_hash(src: dict) -> str:
 
 
 def _upsert_batch(session: Session, rows: List[FinastraCollateral]) -> None:
+    # Ensure tables exist for this session/engine (idempotent)
+    SQLModel.metadata.create_all(session.get_bind(), tables=[CollateralRecord.__table__])
+    session.commit()  # refresh connection schema cache
     created = updated = skipped = 0
     for c in rows:
         source_hash = _calc_hash(c.raw)
@@ -101,6 +104,16 @@ class CollateralSyncer:
         self._session_factory = session_factory
 
     async def run_once(self) -> int:
+        """Synchronize collateral once and return processed row count.
+        Ensures tables exist for the engine provided by `session_factory` –
+        important when tests wire a fresh in-memory or tmp sqlite engine.
+        """
+        # Ensure metadata tables are created for the session/engine we're about
+        # to use (the global create_all above points to a different default
+        # engine and is not sufficient inside isolated unit tests).
+        with self._session_factory() as _sess:
+            SQLModel.metadata.create_all(_sess.get_bind(), checkfirst=True)
+
         total = 0
         async for batch in _iter_collateral_pages(self._client):
             with self._session_factory() as sess:

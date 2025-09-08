@@ -11,7 +11,6 @@ from sqlmodel import SQLModel
 def client_api(monkeypatch: pytest.MonkeyPatch):
     db_url = "sqlite:///./test_asset_api.db"
     monkeypatch.setenv("ASSET_DB_URL", db_url)
-    SQLModel.metadata.clear()
     sys.modules.pop("asset_aggregator.db", None)
     sys.modules.pop("asset_aggregator.api", None)
     import asset_aggregator.api as api

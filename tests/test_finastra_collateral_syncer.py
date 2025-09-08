@@ -43,7 +43,6 @@ def _collateral(i: int, updated: datetime):
 async def test_collateral_syncer_create_update_skip(tmp_path):
     # Prepare in-memory DB
     engine = create_engine(f"sqlite:///{tmp_path}/sync.db")
-    SQLModel.metadata.create_all(engine)
 
     t0 = datetime.now(timezone.utc).replace(microsecond=0)
     t1 = t0 + timedelta(hours=1)
@@ -59,6 +58,9 @@ async def test_collateral_syncer_create_update_skip(tmp_path):
     transport = httpx.MockTransport(handler)
     http = FinastraHTTP(base_url="https://api.fusionfabric.cloud", token_provider=_FakeToken(), transport=transport)
     client = CollateralClient(http=http)
+
+    # ensure tables exist after models imported
+    SQLModel.metadata.create_all(engine)
 
     syncer = CollateralSyncer(client=client, session_factory=lambda: Session(engine))
 
