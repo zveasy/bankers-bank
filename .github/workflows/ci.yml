@@ -17,11 +17,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: "Guard: no .env committed"
+      - name: "Guard: no .env committed (allow .env.example and .env.ci)"
         run: |
           set -euo pipefail
           git ls-files -z | grep -zE '(^|/)\.env(\..*)?$' | tr -d '\0' | \
-            grep -v '\.env\.example$' && {
+            grep -vE '\.env\.example$|\.env\.ci$' && {
               echo "::error::.env files must not be committed"; exit 1; } || true
 
       - id: check
@@ -42,11 +42,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: "Guard: no .env committed"
+      - name: "Guard: no .env committed (allow .env.example and .env.ci)"
         run: |
           set -euo pipefail
           git ls-files -z | grep -zE '(^|/)\.env(\..*)?$' | tr -d '\0' | \
-            grep -v '\.env\.example$' && {
+            grep -vE '\.env\.example$|\.env\.ci$' && {
               echo "::error::.env files must not be committed"; exit 1; } || true
 
       - name: Set up Go
@@ -77,11 +77,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: "Guard: no .env committed"
+      - name: "Guard: no .env committed (allow .env.example and .env.ci)"
         run: |
           set -euo pipefail
           git ls-files -z | grep -zE '(^|/)\.env(\..*)?$' | tr -d '\0' | \
-            grep -v '\.env\.example$' && {
+            grep -vE '\.env\.example$|\.env\.ci$' && {
               echo "::error::.env files must not be committed"; exit 1; } || true
 
       - name: Set up Python
@@ -117,7 +117,7 @@ jobs:
           path: coverage.xml
 
   # ────────────────────────────────
-  # Poetry-based workflow with Redis & Redpanda
+  # Poetry-based workflow (unit tests)
   # ────────────────────────────────
   test-python-poetry:
     runs-on: ubuntu-latest
@@ -140,19 +140,16 @@ jobs:
           path: ~/.cache/pypoetry
           key: poetry-${{ runner.os }}-${{ hashFiles('pyproject.toml') }}
 
-      # ⬇️ PATCH: auto-detect a usable dependency group for tests
-      - name: Install deps (auto-detect test/dev group)
+      - name: Install deps (prefer [group.test], else [group.dev])
         run: |
           set -euo pipefail
-          if poetry group list | grep -qE '(^|[[:space:]])test([[:space:]]|$)'; then
-            echo "Installing with 'test' group"
+          poetry --version
+          if poetry group list 2>/dev/null | grep -qE '(^|[[:space:]])test([[:space:]]|$)'; then
+            echo "Installing with [group.test]"
             poetry install --no-interaction --no-root --with test
-          elif poetry group list | grep -qE '(^|[[:space:]])dev([[:space:]]|$)'; then
-            echo "Installing with 'dev' group"
-            poetry install --no-interaction --no-root --with dev
           else
-            echo "No 'test' or 'dev' groups; installing default deps"
-            poetry install --no-interaction --no-root
+            echo "No [group.test]; installing with [group.dev]"
+            poetry install --no-interaction --no-root --with dev
           fi
 
       - name: Run python tests
@@ -169,11 +166,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: "Guard: no .env committed"
+      - name: "Guard: no .env committed (allow .env.example and .env.ci)"
         run: |
           set -euo pipefail
           git ls-files -z | grep -zE '(^|/)\.env(\..*)?$' | tr -d '\0' | \
-            grep -v '\.env\.example$' && {
+            grep -vE '\.env\.example$|\.env\.ci$' && {
               echo "::error::.env files must not be committed"; exit 1; } || true
 
       - name: Validate Grafana dashboards (JSON)
@@ -202,6 +199,8 @@ jobs:
     outputs:
       have_pg: ${{ steps.determine.outputs.have_pg }}
     steps:
+      - uses: actions/checkout@v4
+
       - name: Setup CI env
         run: |
           if [ ! -f .env.ci ]; then
@@ -239,11 +238,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: "Guard: no .env committed"
+      - name: "Guard: no .env committed (allow .env.example and .env.ci)"
         run: |
           set -euo pipefail
           git ls-files -z | grep -zE '(^|/)\.env(\..*)?$' | tr -d '\0' | \
-            grep -v '\.env\.example$' && {
+            grep -vE '\.env\.example$|\.env\.ci$' && {
               echo "::error::.env files must not be committed"; exit 1; } || true
 
       - name: Setup CI env
@@ -287,11 +286,13 @@ jobs:
                   try:
                       with urllib.request.urlopen(url+path, timeout=2) as r:
                           if r.status == 200:
-                              print("service healthy"); sys.exit(0)
+                              print("service healthy")
+                              sys.exit(0)
                   except Exception:
                       pass
                   time.sleep(delay)
-              print(f"Timed out waiting for {url}{path}", file=sys.stderr); sys.exit(1)
+              print(f"Timed out waiting for {url}{path}", file=sys.stderr)
+              sys.exit(1)
           wait("http://127.0.0.1:8050")
           PY
 
@@ -312,7 +313,9 @@ jobs:
         if: failure()
         run: |
           if [ -f .env ]; then
-            set -a; source .env; set +a
+            set -a
+            source .env
+            set +a
             docker compose --env-file .env logs --no-color > compose-credit-logs.txt
           else
             echo ".env missing; skipping detailed compose logs"
@@ -328,7 +331,9 @@ jobs:
         if: always()
         run: |
           if [ -f .env ]; then
-            set -a; source .env; set +a
+            set -a
+            source .env
+            set +a
             docker compose --env-file .env down -v
           else
             docker compose down -v
@@ -345,15 +350,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: "Guard: no .env committed"
+      - name: "Guard: no .env committed (allow .env.example and .env.ci)"
         run: |
           set -euo pipefail
           git ls-files -z | grep -zE '(^|/)\.env(\..*)?$' | tr -d '\0' | \
-            grep -v '\.env\.example$' && {
+            grep -vE '\.env\.example$|\.env\.ci$' && {
               echo "::error::.env files must not be committed"; exit 1; } || true
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
 
       - name: Setup CI env
         run: |
@@ -370,14 +372,21 @@ jobs:
             echo "::error::.env.ci appears to contain a secret-like value"; exit 1
           fi
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Build images
         run: |
-          set -a; source .env; set +a
+          set -a
+          source .env
+          set +a
           docker compose --env-file .env build bank_connector
 
       - name: Start stack (postgres + mock_bank + bank_connector)
         run: |
-          set -a; source .env; set +a
+          set -a
+          source .env
+          set +a
           docker compose --env-file .env up -d postgres mock_bank bank_connector
 
       - name: Wait for health
@@ -389,11 +398,13 @@ jobs:
                   try:
                       with urllib.request.urlopen(url+path, timeout=2) as r:
                           if r.status == 200:
-                              print("service healthy"); sys.exit(0)
+                              print("service healthy")
+                              sys.exit(0)
                   except Exception:
                       pass
                   time.sleep(delay)
-              print(f"Timed out waiting for {url}{path}", file=sys.stderr); sys.exit(1)
+              print(f"Timed out waiting for {url}{path}", file=sys.stderr)
+              sys.exit(1)
           wait("http://127.0.0.1:8080")
           PY
 
@@ -415,7 +426,9 @@ jobs:
         if: failure()
         run: |
           if [ -f .env ]; then
-            set -a; source .env; set +a
+            set -a
+            source .env
+            set +a
             docker compose --env-file .env logs --no-color > compose-payments-logs.txt
           else
             echo ".env missing; skipping detailed compose logs"
@@ -439,11 +452,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: "Guard: no .env committed"
+      - name: "Guard: no .env committed (allow .env.example and .env.ci)"
         run: |
           set -euo pipefail
           git ls-files -z | grep -zE '(^|/)\.env(\..*)?$' | tr -d '\0' | \
-            grep -v '\.env\.example$' && {
+            grep -vE '\.env\.example$|\.env\.ci$' && {
               echo "::error::.env files must not be committed"; exit 1; } || true
 
       - name: Set up Python
@@ -453,11 +466,13 @@ jobs:
 
       - name: Install smoke deps
         run: |
-          python -m pip install --upgrade pip httpx sqlmodel fastapi prometheus-client python-dateutil
+          python -m pip install --upgrade pip
+          pip install python-dateutil httpx sqlmodel fastapi prometheus-client
+
+      - name: Add repo root to PYTHONPATH
+        run: echo "PYTHONPATH=$(pwd)" >> "$GITHUB_ENV"
 
       - name: Run collateral smoke
-        env:
-          PYTHONPATH: ${{ github.workspace }}
         run: python scripts/smoke_finastra_collateral.py --offline
 
   # ────────────────────────────────
@@ -469,31 +484,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup CI env
-        run: cp .env.ci .env
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Install Poetry
-        uses: abatilo/actions-poetry@v2
-        with:
-          poetry-version: '1.8.2'
+      - name: Install smoke deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install python-dateutil
 
-      - name: Install deps (main group only)
-        run: poetry install --no-root --only main
+      - name: Add repo root to PYTHONPATH
+        run: echo "PYTHONPATH=$(pwd)" >> "$GITHUB_ENV"
 
       - name: Run accounts smoke
-        env:
-          PYTHONPATH: ${{ github.workspace }}
-        run: poetry run python scripts/smoke_finastra_accounts.py
+        run: python scripts/smoke_finastra_accounts.py
 
       - name: Run balances smoke
-        env:
-          PYTHONPATH: ${{ github.workspace }}
-        run: poetry run python scripts/smoke_finastra_balances.py
+        run: python scripts/smoke_finastra_balances.py
 
   # ────────────────────────────────
   # Finastra Transactions offline smoke
@@ -503,11 +511,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: "Guard: no .env committed"
+      - name: "Guard: no .env committed (allow .env.example and .env.ci)"
         run: |
           set -euo pipefail
           git ls-files -z | grep -zE '(^|/)\.env(\..*)?$' | tr -d '\0' | \
-            grep -v '\.env\.example$' && {
+            grep -vE '\.env\.example$|\.env\.ci$' && {
               echo "::error::.env files must not be committed"; exit 1; } || true
 
       - name: Set up Python
@@ -517,11 +525,13 @@ jobs:
 
       - name: Install smoke deps
         run: |
-          python -m pip install --upgrade pip httpx sqlmodel fastapi prometheus-client python-dateutil
+          python -m pip install --upgrade pip
+          pip install python-dateutil httpx sqlmodel fastapi prometheus-client
+
+      - name: Add repo root to PYTHONPATH
+        run: echo "PYTHONPATH=$(pwd)" >> "$GITHUB_ENV"
 
       - name: Run transactions smoke
-        env:
-          PYTHONPATH: ${{ github.workspace }}
         run: python scripts/smoke_finastra_transactions.py
 
   # ────────────────────────────────
@@ -535,11 +545,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: "Guard: no .env committed"
+      - name: "Guard: no .env committed (allow .env.example and .env.ci)"
         run: |
           set -euo pipefail
           git ls-files -z | grep -zE '(^|/)\.env(\..*)?$' | tr -d '\0' | \
-            grep -v '\.env\.example$' && {
+            grep -vE '\.env\.example$|\.env\.ci$' && {
               echo "::error::.env files must not be committed"; exit 1; } || true
 
       - name: Set up Docker Buildx
@@ -562,7 +572,9 @@ jobs:
 
       - name: Build quantengine
         run: |
-          set -a; source .env; set +a
+          set -a
+          source .env
+          set +a
           docker compose --env-file .env build quantengine
 
       - name: Start quantengine only
@@ -570,7 +582,9 @@ jobs:
           QUANT_DRY_RUN: "1"
           QUANT_CIRCUIT_OPEN: "0"
         run: |
-          set -a; source .env; set +a
+          set -a
+          source .env
+          set +a
           docker compose --env-file .env up -d quantengine
 
       - name: Wait for health
@@ -582,11 +596,13 @@ jobs:
                   try:
                       with urllib.request.urlopen(url+'/readyz', timeout=2) as r:
                           if r.status == 200:
-                              print('service healthy'); sys.exit(0)
+                              print('service healthy')
+                              sys.exit(0)
                   except Exception:
                       pass
                   time.sleep(delay)
-              print('Timed out waiting for service', file=sys.stderr); sys.exit(1)
+              print('Timed out waiting for service', file=sys.stderr)
+              sys.exit(1)
           wait('http://127.0.0.1:9100')
           PY
 
@@ -607,7 +623,9 @@ jobs:
         if: failure()
         run: |
           if [ -f .env ]; then
-            set -a; source .env; set +a
+            set -a
+            source .env
+            set +a
             docker compose --env-file .env logs --no-color > compose-liquidity-logs.txt
           else
             echo ".env missing; skipping detailed compose logs"
@@ -627,7 +645,9 @@ jobs:
         if: always()
         run: |
           if [ -f .env ]; then
-            set -a; source .env; set +a
+            set -a
+            source .env
+            set +a
             docker compose --env-file .env down -v || docker compose down -v
           else
             docker compose down -v || true
