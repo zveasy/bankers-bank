@@ -137,71 +137,28 @@ jobs:
       - name: Cache Poetry virtualenv
         uses: actions/cache@v4
         with:
-          path: |
-            ~/.cache/pypoetry
-            ~/.local/share/pypoetry
+          path: ~/.cache/pypoetry
           key: poetry-${{ runner.os }}-${{ hashFiles('pyproject.toml') }}
 
-      - name: Install deps (with test extras)
-        run: poetry install --no-interaction --no-root --with test
-
-      - name: Prepare test DB schema (alembic if present; else metadata)
-        env:
-          BANKERSBANK_DB_URL: sqlite:///test.db
+      # ⬇️ PATCH: auto-detect a usable dependency group for tests
+      - name: Install deps (auto-detect test/dev group)
         run: |
-          poetry run python - <<'PY'
-          import os, pathlib
-          db_url = os.environ.get('BANKERSBANK_DB_URL') or os.environ.get('DATABASE_URL') or 'sqlite:///test.db'
-          print(f"DB URL: {db_url}")
-          try:
-              from sqlalchemy import create_engine
-          except Exception:
-              print("SQLAlchemy not available; skipping schema prep")
-              raise SystemExit(0)
-          engine = create_engine(db_url, future=True)
-          # Prefer alembic if config exists
-          if pathlib.Path('alembic.ini').exists():
-              try:
-                  from alembic.config import Config
-                  from alembic import command
-                  cfg = Config('alembic.ini')
-                  cfg.set_main_option('sqlalchemy.url', db_url)
-                  command.upgrade(cfg, 'head')
-                  print('Alembic migrations applied.')
-              except Exception as e:
-                  print('Alembic failed, falling back to metadata:', e)
-                  try:
-                      from bankers_bank.db import Base
-                  except Exception:
-                      try:
-                          from bankers_bank.common.db import Base
-                      except Exception:
-                          Base = None
-                  if Base:
-                      Base.metadata.create_all(engine)
-                      print('Created tables via Base.metadata')
-                  else:
-                      print('No Base metadata found; continuing anyway.')
-          else:
-              try:
-                  from bankers_bank.db import Base
-              except Exception:
-                  try:
-                      from bankers_bank.common.db import Base
-                  except Exception:
-                      Base = None
-              if Base:
-                  Base.metadata.create_all(engine)
-                  print('Created tables via Base.metadata')
-              else:
-                  print('No Base metadata found; continuing.')
-          PY
+          set -euo pipefail
+          if poetry group list | grep -qE '(^|[[:space:]])test([[:space:]]|$)'; then
+            echo "Installing with 'test' group"
+            poetry install --no-interaction --no-root --with test
+          elif poetry group list | grep -qE '(^|[[:space:]])dev([[:space:]]|$)'; then
+            echo "Installing with 'dev' group"
+            poetry install --no-interaction --no-root --with dev
+          else
+            echo "No 'test' or 'dev' groups; installing default deps"
+            poetry install --no-interaction --no-root
+          fi
 
       - name: Run python tests
         env:
           PYTHONPATH: ${{ github.workspace }}
           BANKERSBANK_INTEGRATION: "0"
-          BANKERSBANK_DB_URL: sqlite:///test.db
         run: poetry run pytest -q
 
   # ────────────────────────────────
@@ -245,18 +202,10 @@ jobs:
     outputs:
       have_pg: ${{ steps.determine.outputs.have_pg }}
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Write .env.ci from secret (if provided)
-        run: |
-          if [ ! -f .env.ci ] && [ -n "${{ secrets.ENV_CI_BASE64 }}" ]; then
-            echo "${{ secrets.ENV_CI_BASE64 }}" | base64 -d > .env.ci
-          fi
-
       - name: Setup CI env
         run: |
           if [ ! -f .env.ci ]; then
-            echo "::error::missing .env.ci at repo root and ENV_CI_BASE64 secret not set"; exit 1
+            echo "::error::missing .env.ci at repo root"; exit 1
           fi
           cp .env.ci .env
           # safety invariants – ensure required placeholders exist and no real secrets snuck in
@@ -296,12 +245,6 @@ jobs:
           git ls-files -z | grep -zE '(^|/)\.env(\..*)?$' | tr -d '\0' | \
             grep -v '\.env\.example$' && {
               echo "::error::.env files must not be committed"; exit 1; } || true
-
-      - name: Write .env.ci from secret (if provided)
-        run: |
-          if [ ! -f .env.ci ] && [ -n "${{ secrets.ENV_CI_BASE64 }}" ]; then
-            echo "${{ secrets.ENV_CI_BASE64 }}" | base64 -d > .env.ci
-          fi
 
       - name: Setup CI env
         run: |
@@ -344,13 +287,11 @@ jobs:
                   try:
                       with urllib.request.urlopen(url+path, timeout=2) as r:
                           if r.status == 200:
-                              print("service healthy")
-                              sys.exit(0)
+                              print("service healthy"); sys.exit(0)
                   except Exception:
                       pass
                   time.sleep(delay)
-              print(f"Timed out waiting for {url}{path}", file=sys.stderr)
-              sys.exit(1)
+              print(f"Timed out waiting for {url}{path}", file=sys.stderr); sys.exit(1)
           wait("http://127.0.0.1:8050")
           PY
 
@@ -360,7 +301,7 @@ jobs:
           python-version: '3.11'
 
       - name: Install smoke deps
-        run: python -m pip install --upgrade pip requests python-dateutil
+        run: python -m pip install --upgrade pip requests
 
       - name: Run credit smoke
         env:
@@ -371,9 +312,7 @@ jobs:
         if: failure()
         run: |
           if [ -f .env ]; then
-            set -a
-            source .env
-            set +a
+            set -a; source .env; set +a
             docker compose --env-file .env logs --no-color > compose-credit-logs.txt
           else
             echo ".env missing; skipping detailed compose logs"
@@ -389,9 +328,7 @@ jobs:
         if: always()
         run: |
           if [ -f .env ]; then
-            set -a
-            source .env
-            set +a
+            set -a; source .env; set +a
             docker compose --env-file .env down -v
           else
             docker compose down -v
@@ -415,11 +352,8 @@ jobs:
             grep -v '\.env\.example$' && {
               echo "::error::.env files must not be committed"; exit 1; } || true
 
-      - name: Write .env.ci from secret (if provided)
-        run: |
-          if [ ! -f .env.ci ] && [ -n "${{ secrets.ENV_CI_BASE64 }}" ]; then
-            echo "${{ secrets.ENV_CI_BASE64 }}" | base64 -d > .env.ci
-          fi
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Setup CI env
         run: |
@@ -436,21 +370,14 @@ jobs:
             echo "::error::.env.ci appears to contain a secret-like value"; exit 1
           fi
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
       - name: Build images
         run: |
-          set -a
-          source .env
-          set +a
+          set -a; source .env; set +a
           docker compose --env-file .env build bank_connector
 
       - name: Start stack (postgres + mock_bank + bank_connector)
         run: |
-          set -a
-          source .env
-          set +a
+          set -a; source .env; set +a
           docker compose --env-file .env up -d postgres mock_bank bank_connector
 
       - name: Wait for health
@@ -462,13 +389,11 @@ jobs:
                   try:
                       with urllib.request.urlopen(url+path, timeout=2) as r:
                           if r.status == 200:
-                              print("service healthy")
-                              sys.exit(0)
+                              print("service healthy"); sys.exit(0)
                   except Exception:
                       pass
                   time.sleep(delay)
-              print(f"Timed out waiting for {url}{path}", file=sys.stderr)
-              sys.exit(1)
+              print(f"Timed out waiting for {url}{path}", file=sys.stderr); sys.exit(1)
           wait("http://127.0.0.1:8080")
           PY
 
@@ -478,7 +403,7 @@ jobs:
           python-version: '3.11'
 
       - name: Install smoke deps
-        run: python -m pip install --upgrade pip httpx fastapi prometheus-client sqlmodel python-dateutil
+        run: python -m pip install --upgrade pip httpx fastapi prometheus-client sqlmodel
 
       - name: Run payments smoke
         env:
@@ -490,9 +415,7 @@ jobs:
         if: failure()
         run: |
           if [ -f .env ]; then
-            set -a
-            source .env
-            set +a
+            set -a; source .env; set +a
             docker compose --env-file .env logs --no-color > compose-payments-logs.txt
           else
             echo ".env missing; skipping detailed compose logs"
@@ -529,7 +452,8 @@ jobs:
           python-version: '3.11'
 
       - name: Install smoke deps
-        run: python -m pip install --upgrade pip httpx sqlmodel fastapi prometheus-client python-dateutil
+        run: |
+          python -m pip install --upgrade pip httpx sqlmodel fastapi prometheus-client python-dateutil
 
       - name: Run collateral smoke
         env:
@@ -544,12 +468,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Write .env.ci from secret (if provided)
-        run: |
-          if [ ! -f .env.ci ] && [ -n "${{ secrets.ENV_CI_BASE64 }}" ]; then
-            echo "${{ secrets.ENV_CI_BASE64 }}" | base64 -d > .env.ci
-          fi
 
       - name: Setup CI env
         run: cp .env.ci .env
@@ -570,12 +488,12 @@ jobs:
       - name: Run accounts smoke
         env:
           PYTHONPATH: ${{ github.workspace }}
-        run: poetry run python scripts/smoke_finastra_accounts.py --offline
+        run: poetry run python scripts/smoke_finastra_accounts.py
 
       - name: Run balances smoke
         env:
           PYTHONPATH: ${{ github.workspace }}
-        run: poetry run python scripts/smoke_finastra_balances.py --offline
+        run: poetry run python scripts/smoke_finastra_balances.py
 
   # ────────────────────────────────
   # Finastra Transactions offline smoke
@@ -598,12 +516,13 @@ jobs:
           python-version: '3.11'
 
       - name: Install smoke deps
-        run: python -m pip install --upgrade pip httpx sqlmodel fastapi prometheus-client python-dateutil
+        run: |
+          python -m pip install --upgrade pip httpx sqlmodel fastapi prometheus-client python-dateutil
 
       - name: Run transactions smoke
         env:
           PYTHONPATH: ${{ github.workspace }}
-        run: python scripts/smoke_finastra_transactions.py --offline
+        run: python scripts/smoke_finastra_transactions.py
 
   # ────────────────────────────────
   # Liquidity stack smoke with quantengine
@@ -623,11 +542,8 @@ jobs:
             grep -v '\.env\.example$' && {
               echo "::error::.env files must not be committed"; exit 1; } || true
 
-      - name: Write .env.ci from secret (if provided)
-        run: |
-          if [ ! -f .env.ci ] && [ -n "${{ secrets.ENV_CI_BASE64 }}" ]; then
-            echo "${{ secrets.ENV_CI_BASE64 }}" | base64 -d > .env.ci
-          fi
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Setup CI env
         run: |
@@ -644,14 +560,9 @@ jobs:
             echo "::error::.env.ci appears to contain a secret-like value"; exit 1
           fi
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
       - name: Build quantengine
         run: |
-          set -a
-          source .env
-          set +a
+          set -a; source .env; set +a
           docker compose --env-file .env build quantengine
 
       - name: Start quantengine only
@@ -659,9 +570,7 @@ jobs:
           QUANT_DRY_RUN: "1"
           QUANT_CIRCUIT_OPEN: "0"
         run: |
-          set -a
-          source .env
-          set +a
+          set -a; source .env; set +a
           docker compose --env-file .env up -d quantengine
 
       - name: Wait for health
@@ -673,13 +582,11 @@ jobs:
                   try:
                       with urllib.request.urlopen(url+'/readyz', timeout=2) as r:
                           if r.status == 200:
-                              print('service healthy')
-                              sys.exit(0)
+                              print('service healthy'); sys.exit(0)
                   except Exception:
                       pass
                   time.sleep(delay)
-              print('Timed out waiting for service', file=sys.stderr)
-              sys.exit(1)
+              print('Timed out waiting for service', file=sys.stderr); sys.exit(1)
           wait('http://127.0.0.1:9100')
           PY
 
@@ -689,7 +596,7 @@ jobs:
           python-version: '3.11'
 
       - name: Install smoke deps
-        run: python -m pip install --upgrade pip requests python-dateutil
+        run: python -m pip install --upgrade pip requests
 
       - name: Run liquidity smoke
         env:
@@ -700,9 +607,7 @@ jobs:
         if: failure()
         run: |
           if [ -f .env ]; then
-            set -a
-            source .env
-            set +a
+            set -a; source .env; set +a
             docker compose --env-file .env logs --no-color > compose-liquidity-logs.txt
           else
             echo ".env missing; skipping detailed compose logs"
@@ -722,9 +627,8 @@ jobs:
         if: always()
         run: |
           if [ -f .env ]; then
-            set -a
-            source .env
-            set +a
+            set -a; source .env; set +a
             docker compose --env-file .env down -v || docker compose down -v
           else
             docker compose down -v || true
+          fi
