@@ -96,6 +96,23 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      - name: "Guard: ensure .env.ci has no real secrets:"
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f .env.ci
+          # If FINA_CLIENT_ID/SECRET are present, they must be CHANGEME
+          if grep -E '^(FINA_CLIENT_ID|FINA_CLIENT_SECRET)=' .env.ci >/dev/null 2>&1; then
+            if grep -E '^(FINA_CLIENT_ID|FINA_CLIENT_SECRET)=' .env.ci | grep -vq 'CHANGEME'; then
+              echo "::error::.env.ci contains non-placeholder credentials"; exit 1
+            fi
+          fi
+          # Fail on common secret patterns (bearer-like, base64 JWT-like, GitHub tokens, RSA keys)
+          if grep -Eq '(eyJ[0-9A-Za-z_=.-]{10,}|AIza[0-9A-Za-z_-]{20,}|gh[pso]_[0-9A-Za-z_-]{20,}|xox[baprs]-[0-9A-Za-z-]+|sk_live_[0-9A-Za-z]{10,}|-----BEGIN (PRIVATE|RSA) KEY-----)' .env.ci; then
+            echo "::error::.env.ci contains strings that look like secrets"; exit 1
+          fi
+          echo ".env.ci looks clean."
+
       - name: Ensure netcat present
         run: |
           sudo apt-get update
@@ -112,7 +129,8 @@ jobs:
           else
             pip install -e .
           fi
-          pip install pytest pytest-cov
+          # Ensure deps used by tests / warnings filters exist
+          pip install "SQLAlchemy>=1.4,<2.0" requests pytest pytest-cov
 
       - name: Run SDK unit tests with coverage
         env:
@@ -182,12 +200,15 @@ jobs:
             echo 'ruff not installed; skipping'
           fi
 
+      - name: Add stubs for requests
+        run: poetry run python -m pip install types-requests
+
       - name: Type check (mypy if present)
         env:
           MYPYPATH: sdk/python
         run: |
           if poetry run python -c "import importlib.util, sys; sys.exit(0 if importlib.util.find_spec('mypy') else 1)"; then
-            poetry run mypy --explicit-package-bases sdk/python
+            poetry run mypy
           else
             echo 'mypy not installed; skipping'
           fi
@@ -200,6 +221,12 @@ jobs:
           PYTHONPATH: ${{ env.PYTHONPATH }}
           BANKERSBANK_INTEGRATION: "0"
         run: poetry run pytest -q
+
+      - name: Shim guard
+        run: python scripts/verify_shims.py
+
+      - name: Duplicate scan (report only)
+        run: python scripts/scan_duplicates.py
 
   # ────────────────────────────────
   # Observability lint: alert rules & dashboards
@@ -555,6 +582,31 @@ jobs:
       - name: Add repo root to PYTHONPATH
         run: echo "PYTHONPATH=$PWD" >> "$GITHUB_ENV"
 
+      - name: Env guard
+        run: |
+          if [ -f scripts/verify_env.py ]; then
+            python scripts/verify_env.py
+          else
+            echo "verify_env.py not found; skipping"
+          fi
+
+      - name: "Guard: ensure .env.ci has no real secrets"
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f .env.ci
+          # If FINA_CLIENT_ID/SECRET are present, they must be CHANGEME
+          if grep -E '^(FINA_CLIENT_ID|FINA_CLIENT_SECRET)=' .env.ci >/dev/null 2>&1; then
+            if grep -E '^(FINA_CLIENT_ID|FINA_CLIENT_SECRET)=' .env.ci | grep -vq 'CHANGEME'; then
+              echo "::error::.env.ci contains non-placeholder credentials"; exit 1
+            fi
+          fi
+          # Fail on common secret patterns (bearer-like, base64 JWT-like, GitHub tokens, RSA keys)
+          if grep -Eq '(eyJ[0-9A-Za-z_=.-]{10,}|AIza[0-9A-Za-z_-]{20,}|gh[pso]_[0-9A-Za-z_-]{20,}|xox[baprs]-[0-9A-Za-z-]+|sk_live_[0-9A-Za-z]{10,}|-----BEGIN (PRIVATE|RSA) KEY-----)' .env.ci; then
+            echo "::error::.env.ci contains strings that look like secrets"; exit 1
+          fi
+          echo ".env.ci looks clean."
+
       - name: Copy CI env → .env
         run: |
           if [ -f ".env.ci" ]; then
@@ -651,7 +703,7 @@ jobs:
               for _ in range(tries):
                   try:
                       with urllib.request.urlopen(url+'/readyz', timeout=2) as r:
-                          if r.status == 200)
+                          if r.status == 200:
                               print('service healthy')
                               sys.exit(0)
                   except Exception:

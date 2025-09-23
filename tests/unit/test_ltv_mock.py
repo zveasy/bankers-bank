@@ -5,7 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from mocks.mock_finastra_api import app as mock_app
-from sdk.python.bankersbank.client import BankersBankClient
+from bankersbank.client import BankersBankClient
 from tests.test_helpers import REQUESTS_AVAILABLE
 
 pytestmark = pytest.mark.skipif(not REQUESTS_AVAILABLE, reason="requests not installed")
@@ -61,7 +61,7 @@ def test_calculate_ltv_against_mock(monkeypatch):
         base_url = str(http_client.base_url)
         _patch_requests(monkeypatch, http_client)
         reset_collateral(http_client)
-        client_sdk = BankersBankClient(base_url, token="dummy")
+        client_sdk = BankersBankClient(token="dummy", base_url=base_url)
         account_id = "456783434"  # This is in SAMPLE_ACCOUNTS and SAMPLE_BALANCES
         setup_collateral_and_account(client_sdk, account_id)
         result = client_sdk.calculate_ltv(account_id)
@@ -75,7 +75,7 @@ def test_ltv_zero_collateral(monkeypatch):
         base_url = str(http_client.base_url)
         _patch_requests(monkeypatch, http_client)
         reset_collateral(http_client)
-        client_sdk = BankersBankClient(base_url, token="dummy")
+        client_sdk = BankersBankClient(token="dummy", base_url=base_url)
         account_id = "456783434"
         # Do not add collateral
         with pytest.raises(ValueError, match="Total collateral valuation is zero"):
@@ -89,7 +89,7 @@ def test_ltv_multiple_collateral(monkeypatch):
         base_url = str(http_client.base_url)
         _patch_requests(monkeypatch, http_client)
         reset_collateral(http_client)
-        client_sdk = BankersBankClient(base_url, token="dummy")
+        client_sdk = BankersBankClient(token="dummy", base_url=base_url)
         account_id = "456783434"
         setup_collateral_and_account(
             client_sdk, account_id, address="1 A St", valuation=100000
@@ -108,7 +108,7 @@ def test_ltv_no_booked_balance(monkeypatch):
         base_url = str(http_client.base_url)
         _patch_requests(monkeypatch, http_client)
         reset_collateral(http_client)
-        client_sdk = BankersBankClient(base_url, token="dummy")
+        client_sdk = BankersBankClient(token="dummy", base_url=base_url)
         # Use a non-existent account id
         account_id = "999999999"
         setup_collateral_and_account(client_sdk, account_id)

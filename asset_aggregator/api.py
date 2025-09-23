@@ -7,7 +7,7 @@ configure_logging(os.getenv("LOG_FORMAT", "json"), service_name="asset_aggregato
 import socket
 import time
 from datetime import datetime, timedelta, timezone
-from typing import List
+from typing import List, Optional
 import asyncio
 
 from fastapi import Depends, FastAPI, HTTPException
@@ -34,6 +34,18 @@ init_db()
 
 app.mount("/metrics", make_asgi_app())
 
+#
+# Read model to avoid FastAPI/Pydantic recursion with table=True models
+# Fields mirror your AssetSnapshot attributes (camelCase names included).
+#
+from sqlmodel import SQLModel
+
+class AssetSnapshotRead(SQLModel):
+    bank_id: str
+    ts: datetime
+    eligibleCollateralUSD: Optional[float] = None
+    totalBalancesUSD: Optional[float] = None
+    undrawnCreditUSD: Optional[float] = None
 
 class SnapshotRequest(BaseModel):
     bank_id: str | None = None
@@ -107,12 +119,12 @@ def create_snapshot(
         raise HTTPException(status_code=500, detail=f"snapshot_failed: {e}") from e
 
 
-@app.get("/assets/summary", response_model=AssetSnapshot)
+@app.get("/assets/summary", response_model=AssetSnapshotRead)
 def get_summary(
     bank_id: str,
     session: Session = Depends(get_session),
     _: None = Depends(require_token),
-) -> AssetSnapshot:
+) -> AssetSnapshotRead:
     row = session.exec(
         select(AssetSnapshot)
         .where(AssetSnapshot.bank_id == bank_id)
@@ -123,7 +135,7 @@ def get_summary(
     return row
 
 
-@app.get("/assets/history", response_model=List[AssetSnapshot])
+@app.get("/assets/history", response_model=List[AssetSnapshotRead])
 def get_history(
     bank_id: str,
     days: int = 1,

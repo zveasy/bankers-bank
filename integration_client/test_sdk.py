@@ -7,8 +7,6 @@ import pytest
 from integration_client.utils import clear_collateral_registry
 from tests.test_helpers import *
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "sdk/python"))
-
 from bankersbank.client import BankersBankClient
 
 pytestmark = pytest.mark.skipif(not REQUESTS_AVAILABLE, reason="requests not installed")
