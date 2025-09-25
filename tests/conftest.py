@@ -1,4 +1,13 @@
 import os
+import sys
+from pathlib import Path
+
+# ---------------------------------------------------------------------------
+# Prefer canonical package over SDK copy
+# ---------------------------------------------------------------------------
+_SDK_DIR = Path(__file__).resolve().parents[1] / "sdk" / "python"
+if str(_SDK_DIR) in sys.path:
+    sys.path.remove(str(_SDK_DIR))
 
 import pytest
 

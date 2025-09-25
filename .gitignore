@@ -37,5 +37,9 @@ build/
 Thumbs.db
 *.db
 
+# local db / artifacts
+.data/
+*.egg-info/
+
 # Test outputs
 test_output.json
