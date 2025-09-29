@@ -410,6 +410,39 @@ jobs:
           fi
 
   # ────────────────────────────────
+  # Finastra Collaterals live smoke (conditional)
+  # ────────────────────────────────
+  fin-collaterals-live:
+    name: "Finastra Collaterals Live Smoke"
+    runs-on: ubuntu-latest
+    if: ${{ secrets.TEST_COLLATERAL_ID_PRIMARY != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          pip install pytest httpx
+
+      - name: Run live smoke (pytest marker)
+        env:
+          FEATURE_FINASTRA_COLLATERALS: "1"
+          FINASTRA_TOKEN_STRATEGY: client_credentials
+          FINASTRA_CLIENT_ID: ${{ secrets.FINASTRA_B2B_CLIENT_ID }}
+          FINASTRA_CLIENT_SECRET: ${{ secrets.FINASTRA_B2B_CLIENT_SECRET }}
+          FINASTRA_BASE_URL: ${{ secrets.FINASTRA_B2B_BASE_URL_COLLATERALS }}
+          FINASTRA_TENANT: sandbox
+          FINASTRA_SCOPE: ${{ secrets.FINASTRA_SCOPE }}
+        run: |
+          pytest -q tests/test_finastra_client.py -k test_live_list_collaterals_smoke
+
+  # ────────────────────────────────
   # Payments stack smoke with rails
   # ────────────────────────────────
   compose-smoke-payments:

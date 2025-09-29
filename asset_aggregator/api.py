@@ -6,11 +6,12 @@ configure_logging(os.getenv("LOG_FORMAT", "json"), service_name="asset_aggregato
 
 import socket
 import time
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 import asyncio
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Query
 from common.auth import require_token
 from prometheus_client import make_asgi_app
 from pydantic import BaseModel
@@ -28,6 +29,12 @@ from integrations.finastra.accounts_client import AccountsClient
 from integrations.finastra.balances_client import BalancesClient
 from asset_aggregator.syncers.finastra_transactions import FinastraTransactionsSyncer
 from integrations.finastra.account_info_us_client import AccountInfoUSClient
+from bankersbank.finastra import (
+    ClientCredentialsTokenProvider,
+    FinastraAPIClient,
+    FINASTRA_BASE_URL,
+    FINASTRA_TENANT,
+)
 
 app = FastAPI()
 init_db()
@@ -166,6 +173,164 @@ async def run_collateral_sync(_: None = Depends(require_token)):
 
     processed = await _run()
     return {"ok": True, "processed": processed}
+
+
+# --------------------------------------------------------------------------------------
+# Finastra B2B – Collaterals (list/get)
+# --------------------------------------------------------------------------------------
+
+
+def _fin_client() -> FinastraAPIClient:
+    """Builds a FinastraAPIClient using env configuration.
+
+    Expects FINASTRA_CLIENT_ID/FINASTRA_CLIENT_SECRET to be present in env
+    (see docs/runbooks/finastra.md). Uses default scope "accounts".
+    """
+    strategy = os.getenv("FINASTRA_TOKEN_STRATEGY", "client_credentials").lower()
+    static_bearer = os.getenv("FINASTRA_STATIC_BEARER")
+
+    # Prefer static bearer when explicitly configured
+    if strategy == "static" and static_bearer and static_bearer != "disabled":
+        return FinastraAPIClient(
+            base_url=FINASTRA_BASE_URL,
+            tenant=FINASTRA_TENANT,
+            token=static_bearer,
+        )
+
+    # Fall back to client-credentials
+    provider = ClientCredentialsTokenProvider(
+        base_url=FINASTRA_BASE_URL,
+        tenant=FINASTRA_TENANT,
+        client_id=os.environ.get("FINASTRA_CLIENT_ID"),
+        client_secret=os.environ.get("FINASTRA_CLIENT_SECRET"),
+        scope=os.getenv("FINASTRA_SCOPE", "accounts"),
+        verify=os.getenv("CA_CERT", True),
+    )
+    return FinastraAPIClient(token_provider=provider)
+
+
+def _feature_enabled() -> bool:
+    return os.getenv("FEATURE_FINASTRA_COLLATERALS", "1").lower() in ("1", "true", "yes", "on")
+
+
+@app.get(
+    "/finastra/b2b/collaterals",
+    tags=["finastra"],
+    summary="List Finastra collaterals (B2B)",
+)
+def list_finastra_collaterals(
+    top: int = Query(10, ge=1, le=100),
+    startingIndex: int = Query(0, ge=0),
+    _: None = Depends(require_token),
+):
+    """Proxy to Finastra Collaterals list endpoint with simple pagination."""
+    if not _feature_enabled():
+        raise HTTPException(status_code=404, detail="feature_disabled")
+    t0 = time.perf_counter()
+    try:
+        client = _fin_client()
+        data = client.list_collaterals(startingIndex=startingIndex, pageSize=top)
+        # structured success log
+        logging.getLogger(__name__).info(
+            "fin_collaterals_success",
+            extra={
+                "endpoint": "/finastra/b2b/collaterals",
+                "status": 200,
+                "elapsed_ms": int((time.perf_counter() - t0) * 1000),
+            },
+        )
+        return data
+    except Exception as e:
+        # If upstream raised an HTTPError, surface status when possible
+        status = 502
+        try:
+            import requests
+            if isinstance(e, requests.HTTPError) and e.response is not None:
+                # Log Finastra correlation headers for troubleshooting
+                try:
+                    logging.getLogger(__name__).error(
+                        "fin_collaterals_error",
+                        extra={
+                            "endpoint": "/finastra/b2b/collaterals",
+                            "status": e.response.status_code,
+                            "elapsed_ms": int((time.perf_counter() - t0) * 1000),
+                            "ff-trace-id": e.response.headers.get("ff-trace-id"),
+                            "activityId": e.response.headers.get("activityId"),
+                        },
+                    )
+                except Exception:
+                    pass
+                status = e.response.status_code
+                detail = e.response.text
+                raise HTTPException(status_code=status, detail=detail)
+        except Exception:
+            pass
+        logging.getLogger(__name__).error(
+            "fin_collaterals_error",
+            extra={
+                "endpoint": "/finastra/b2b/collaterals",
+                "status": status,
+                "elapsed_ms": int((time.perf_counter() - t0) * 1000),
+            },
+        )
+        raise HTTPException(status_code=status, detail=str(e))
+
+
+@app.get(
+    "/finastra/b2b/collaterals/{collateral_id}",
+    tags=["finastra"],
+    summary="Get Finastra collateral by ID (B2B)",
+)
+def get_finastra_collateral(collateral_id: str, _: None = Depends(require_token)):
+    """Proxy to Finastra Collaterals get by ID endpoint."""
+    if not _feature_enabled():
+        raise HTTPException(status_code=404, detail="feature_disabled")
+    t0 = time.perf_counter()
+    try:
+        client = _fin_client()
+        data = client.get_collateral(collateral_id)
+        logging.getLogger(__name__).info(
+            "fin_collateral_success",
+            extra={
+                "endpoint": f"/finastra/b2b/collaterals/{collateral_id}",
+                "status": 200,
+                "elapsed_ms": int((time.perf_counter() - t0) * 1000),
+            },
+        )
+        return data
+    except Exception as e:
+        status = 502
+        try:
+            import requests
+            if isinstance(e, requests.HTTPError) and e.response is not None:
+                # Log Finastra correlation headers for troubleshooting
+                try:
+                    logging.getLogger(__name__).error(
+                        "fin_collateral_error",
+                        extra={
+                            "endpoint": f"/finastra/b2b/collaterals/{collateral_id}",
+                            "status": e.response.status_code,
+                            "elapsed_ms": int((time.perf_counter() - t0) * 1000),
+                            "ff-trace-id": e.response.headers.get("ff-trace-id"),
+                            "activityId": e.response.headers.get("activityId"),
+                        },
+                    )
+                except Exception:
+                    pass
+                status = e.response.status_code
+                detail = e.response.text
+                raise HTTPException(status_code=status, detail=detail)
+        except Exception:
+            pass
+        logging.getLogger(__name__).error(
+            "fin_collateral_error",
+            extra={
+                "endpoint": f"/finastra/b2b/collaterals/{collateral_id}",
+                "status": status,
+                "elapsed_ms": int((time.perf_counter() - t0) * 1000),
+            },
+        )
+        raise HTTPException(status_code=status, detail=str(e))
 
 
 # --------------------------------------------------------------------------------------

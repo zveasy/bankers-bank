@@ -101,20 +101,39 @@ def test_client_injects_bearer_and_returns_json(monkeypatch):
     assert "/total-lending/collaterals/b2b/v2/collaterals" in captured["url"]
 
 @pytest.mark.skipif(
-    not all(os.getenv(k) for k in ("FINASTRA_CLIENT_ID", "FINASTRA_CLIENT_SECRET")),
+    not (
+        (os.getenv("FINASTRA_CLIENT_ID") and os.getenv("FINASTRA_CLIENT_SECRET"))
+        or (os.getenv("FINASTRA_B2B_CLIENT_ID") and os.getenv("FINASTRA_B2B_CLIENT_SECRET"))
+    ),
     reason="Live Finastra creds not provided in environment",
 )
 def test_live_list_collaterals_smoke():
-    base_url = os.getenv("FINASTRA_BASE_URL", "https://api.fusionfabric.cloud")
+    # Prefer AUTH URL host to avoid passing a product-specific URL into token provider
+    auth_url = os.getenv("FINASTRA_AUTH_URL")
+    if auth_url:
+        try:
+            from urllib.parse import urlparse
+            p = urlparse(auth_url)
+            base_url = f"{p.scheme}://{p.netloc}"
+        except Exception:
+            base_url = os.getenv("FINASTRA_BASE_URL", "https://api.fusionfabric.cloud")
+    else:
+        base_url = (
+            os.getenv("FINASTRA_BASE_URL")
+            or "https://api.fusionfabric.cloud"
+        )
     tenant = os.getenv("FINASTRA_TENANT", "sandbox")
     product = os.getenv("FINASTRA_PRODUCT_COLLATERAL", "total-lending/collaterals/b2b/v2")
+
+    client_id = os.getenv("FINASTRA_CLIENT_ID") or os.getenv("FINASTRA_B2B_CLIENT_ID")
+    client_secret = os.getenv("FINASTRA_CLIENT_SECRET") or os.getenv("FINASTRA_B2B_CLIENT_SECRET")
 
     provider = ClientCredentialsTokenProvider(
         base_url=base_url,
         tenant=tenant,
-        client_id=os.environ["FINASTRA_CLIENT_ID"],
-        client_secret=os.environ["FINASTRA_CLIENT_SECRET"],
-        scope="accounts",
+        client_id=client_id,
+        client_secret=client_secret,
+        scope=os.getenv("FINASTRA_SCOPE", "openid"),
     )
     client = FinastraAPIClient(
         base_url=base_url,
