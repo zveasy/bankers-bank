@@ -1,6 +1,7 @@
 # bankersbank/finastra.py
 import os
 import time
+import random
 import uuid
 import logging
 from dataclasses import dataclass
@@ -273,18 +274,42 @@ class FinastraAPIClient:
         url = self._url(path, kwargs.pop("product", None))
         headers = self._headers(kwargs.pop("headers", None))
         timeout = kwargs.pop("timeout", self.timeout)
-        # When running in mock mode, tests monkeypatch the top-level requests.* calls.
-        # Use requests.request directly so the monkeypatch routes via TestClient.
-        if _use_mock():
-            # FastAPI TestClient.request does not accept 'verify' or some transport args.
-            # Drop unsupported kwargs when running in mock mode.
-            kwargs.pop("verify", None)
-            kwargs.pop("timeout", None)
-            resp = requests.request(method, url, headers=headers, **kwargs)
-        else:
-            resp = self.session.request(method, url, headers=headers, timeout=timeout, verify=self.verify, **kwargs)
-        resp.raise_for_status()
-        return resp
+        attempts = 3
+        # base between 200–500ms; jitter ±50%; exponential growth; cap ~10s per try
+        base_ms = random.uniform(0.2, 0.5)
+
+        last_exc: Exception | None = None
+        for i in range(1, attempts + 1):
+            try:
+                if _use_mock():
+                    kwargs.pop("verify", None)
+                    kwargs.pop("timeout", None)
+                    resp = requests.request(method, url, headers=headers, **kwargs)
+                else:
+                    resp = self.session.request(
+                        method, url, headers=headers, timeout=timeout, verify=self.verify, **kwargs
+                    )
+                # Raise for non-2xx; callers handle HTTPError
+                resp.raise_for_status()
+                return resp
+            except requests.RequestException as e:  # includes HTTPError/ConnectionError
+                last_exc = e
+                # Retry only on transient (5xx or 429) or connection errors
+                code = getattr(getattr(e, "response", None), "status_code", None)
+                transient = code in {429, 500, 502, 503, 504} or code is None
+                if i >= attempts or not transient:
+                    raise
+                # sleep with jitter
+                backoff = base_ms * (2 ** (i - 1))
+                # jitter between 50% and 150%
+                backoff *= random.uniform(0.5, 1.5)
+                # cap at ~10s
+                backoff = min(backoff, 10.0)
+                time.sleep(backoff)
+        # should not reach here
+        if last_exc:
+            raise last_exc
+        raise RuntimeError("unexpected_retry_logic_fallthrough")
 
     def get_json(self, path: str, params: Optional[Dict[str, Any]] = None, **kwargs) -> Dict[str, Any]:
         r = self.request("GET", path, params=params, **kwargs)

@@ -20,12 +20,11 @@ from integrations.finastra.accounts_client import AccountsClient
 from integrations.finastra.balances_client import BalancesClient
 
 
-REQUIRED_VARS = [
-    "FINASTRA_BASE_URL",
-    "FINASTRA_CLIENT_ID",
-    "FINASTRA_CLIENT_SECRET",
-    "FINASTRA_TENANT_ID",
-]
+REQUIRED_ANY_CLIENT = (
+    ("FINASTRA_CLIENT_ID", "FINASTRA_CLIENT_SECRET"),
+    ("FINASTRA_B2B_CLIENT_ID", "FINASTRA_B2B_CLIENT_SECRET"),
+    ("FINASTRA_B2C_CLIENT_ID", "FINASTRA_B2C_CLIENT_SECRET"),
+)
 
 
 @pytest.mark.asyncio
@@ -33,8 +32,21 @@ async def test_live_finastra_smoke(tmp_path: Path):
     # Skip if not opted-in or secrets missing
     if os.getenv("FINASTRA_SMOKE") != "1":
         pytest.skip("live Finastra smoke disabled (set FINASTRA_SMOKE=1 to enable)")
-    if missing := [v for v in REQUIRED_VARS if not os.getenv(v)]:
-        pytest.skip("missing env vars: " + ", ".join(missing))
+    # base url may be provided in different vars; require at least one
+    base_url = (
+        os.getenv("FINASTRA_BASE_URL")
+        or os.getenv("FINASTRA_B2B_BASE_URL_ACCOUNTS")
+        or os.getenv("FINASTRA_B2B_BASE_URL_ACCOUNTINFO")
+        or os.getenv("FINASTRA_B2B_BASE_URL_BALANCES")
+        or os.getenv("FINASTRA_B2B_BASE_URL_COLLATERALS")
+    )
+    if not base_url:
+        pytest.skip("missing base URL (FINASTRA_BASE_URL or FINASTRA_B2B_BASE_URL_*)")
+
+    # require one of the client-id/secret pairs to be present
+    has_pair = any(os.getenv(a) and os.getenv(b) for a, b in REQUIRED_ANY_CLIENT)
+    if not has_pair:
+        pytest.skip("missing client credentials (B2B/B2C or classic)")
 
     acct_client = AccountsClient()
     bal_client = BalancesClient()
