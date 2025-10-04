@@ -67,6 +67,28 @@ def configure_logging(fmt: str | None = None, *, service_name: str | None = None
             def level(self):  # type: ignore
                 return self.logger.level
 
+            # --- Passthroughs so third-party libs (e.g., urllib3) work normally ---
+            def addHandler(self, h):  # type: ignore
+                return self.logger.addHandler(h)
+
+            def removeHandler(self, h):  # type: ignore
+                return self.logger.removeHandler(h)
+
+            def hasHandlers(self):  # type: ignore
+                return self.logger.hasHandlers()
+
+            @property
+            def handlers(self):  # type: ignore
+                return self.logger.handlers
+
+            @property
+            def propagate(self):  # type: ignore
+                return getattr(self.logger, "propagate", True)
+
+            @propagate.setter
+            def propagate(self, v):  # type: ignore
+                setattr(self.logger, "propagate", v)
+
         def _get_logger(name: Optional[str] = None):  # type: ignore
              # Do NOT wrap the root logger; pytest and others expect actual Logger.
              if name is None or name == "root":
