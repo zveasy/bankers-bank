@@ -411,30 +411,30 @@ jobs:
   # ────────────────────────────────
   # Finastra Collaterals live smoke (conditional)
   # ────────────────────────────────
+  # ────────────────────────────────
+# Finastra Collaterals live smoke (conditional)
+# ────────────────────────────────
   fin-collaterals-live:
     name: "Finastra Collaterals Live Smoke"
     runs-on: ubuntu-latest
-
-    # Map the secret to an env var, then use env.* in the if:
-    env:
-      TEST_COLLATERAL_ID_PRIMARY: ${{ secrets.TEST_COLLATERAL_ID_PRIMARY }}
-
-    if: ${{ env.TEST_COLLATERAL_ID_PRIMARY != '' }}
-
+  
+    # ✅ use secrets.* directly here
+    if: ${{ secrets.TEST_COLLATERAL_ID_PRIMARY != '' }}
+  
     steps:
       - uses: actions/checkout@v4
-
+  
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
+  
       - name: Install deps
         run: |
           python -m pip install --upgrade pip
           pip install -e .
           pip install pytest httpx
-
+  
       - name: Run live smoke (pytest marker)
         env:
           FEATURE_FINASTRA_COLLATERALS: "1"
@@ -444,8 +444,9 @@ jobs:
           FINASTRA_BASE_URL: ${{ secrets.FINASTRA_B2B_BASE_URL_COLLATERALS }}
           FINASTRA_TENANT: sandbox
           FINASTRA_SCOPE: ${{ secrets.FINASTRA_SCOPE }}
-          TEST_COLLATERAL_ID_PRIMARY: ${{ env.TEST_COLLATERAL_ID_PRIMARY }}
+          TEST_COLLATERAL_ID_PRIMARY: ${{ secrets.TEST_COLLATERAL_ID_PRIMARY }}
         run: pytest -q tests/test_finastra_client.py -k test_live_list_collaterals_smoke
+
 
   # ────────────────────────────────
   # Payments stack smoke with rails
