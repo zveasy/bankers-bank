@@ -378,13 +378,22 @@ def test_live_list_collaterals_smoke(monkeypatch):
     client_id = os.getenv("FINASTRA_CLIENT_ID") or os.getenv("FINASTRA_B2B_CLIENT_ID")
     client_secret = os.getenv("FINASTRA_CLIENT_SECRET") or os.getenv("FINASTRA_B2B_CLIENT_SECRET")
 
-    provider = ClientCredentialsTokenProvider(
-        base_url=base_url,
-        tenant=tenant,
-        client_id=client_id,
-        client_secret=client_secret,
-        scope=os.getenv("FINASTRA_SCOPE", "openid"),
-    )
+    token_url_override = os.getenv("FINASTRA_TOKEN_URL")
+    if token_url_override:
+        provider = ClientCredentialsTokenProvider(
+            token_url=token_url_override,
+            client_id=client_id,
+            client_secret=client_secret,
+            scope=os.getenv("FINASTRA_SCOPE", "openid"),
+        )
+    else:
+        provider = ClientCredentialsTokenProvider(
+            base_url=base_url,
+            tenant=tenant,
+            client_id=client_id,
+            client_secret=client_secret,
+            scope=os.getenv("FINASTRA_SCOPE", "openid"),
+        )
     client = FinastraAPIClient(
         base_url=base_url,
         tenant=tenant,
