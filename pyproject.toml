@@ -60,4 +60,4 @@ httpx = "^0.27"
 optional = true
 
 [tool.poetry.group.test.dependencies]
-pytest-requests-mock = "^1.11"
+requests-mock = "^1.11"
