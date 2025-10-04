@@ -355,7 +355,9 @@ def test_api_metrics_failure_increment(monkeypatch):
     ),
     reason="Live Finastra creds not provided in environment",
 )
-def test_live_list_collaterals_smoke():
+def test_live_list_collaterals_smoke(monkeypatch):
+    # Force non-mock path so product prefix is used
+    monkeypatch.setenv("USE_MOCK_BALANCES", "false")
     # Prefer AUTH URL host to avoid passing a product-specific URL into token provider
     auth_url = os.getenv("FINASTRA_AUTH_URL")
     if auth_url:
