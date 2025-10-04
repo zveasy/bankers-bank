@@ -72,6 +72,8 @@ def test_token_provider_caches_and_refreshes(monkeypatch):
     assert calls["post"] == 2
 
 def test_client_injects_bearer_and_returns_json(monkeypatch):
+    # Ensure real URL building (not mock short-circuit)
+    monkeypatch.setenv("USE_MOCK_BALANCES", "false")
     class FakeProvider:
         def fetch(self): return "BEARER_TOKEN"
 

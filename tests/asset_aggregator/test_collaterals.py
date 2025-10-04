@@ -2,8 +2,7 @@ import os
 import types
 import pytest
 from common import secrets as _secrets
-import httpx
-from httpx import ASGITransport
+from fastapi.testclient import TestClient
 from common.auth import require_token
 
 import bankersbank.finastra as fin
@@ -31,7 +30,7 @@ def _proxy_to_mock_server():
     Monkeypatch fin.requests.request so that any absolute URL (http://testserver/...)
     is executed against the in-repo mock Finastra FastAPI app.
     """
-    client = httpx.Client(transport=ASGITransport(app=mock_finastra_app), base_url="http://testserver")
+    client = TestClient(mock_finastra_app)
 
     def _request(method, url, **kwargs):
         # Strip scheme/host; mock app mounted at root
@@ -77,7 +76,7 @@ def test_list_collaterals_mock(monkeypatch):
     # Route all Finastra HTTP calls to the mock app
     monkeypatch.setattr(fin.requests, "request", _proxy_to_mock_server())
 
-    client = httpx.Client(transport=ASGITransport(app=aggregator_app), base_url="http://testserver")
+    client = TestClient(aggregator_app)
     r = client.get("/finastra/b2b/collaterals?top=5&startingIndex=0", headers={"Authorization": "Bearer test"})
     assert r.status_code == 200
     body = r.json()
@@ -87,7 +86,7 @@ def test_list_collaterals_mock(monkeypatch):
 
 def test_feature_flag_disabled(monkeypatch):
     monkeypatch.setenv("FEATURE_FINASTRA_COLLATERALS", "0")
-    client = httpx.Client(transport=ASGITransport(app=aggregator_app), base_url="http://testserver")
+    client = TestClient(aggregator_app)
     r = client.get("/finastra/b2b/collaterals", headers={"Authorization": "Bearer test"})
     assert r.status_code == 404
 
@@ -121,7 +120,7 @@ def test_error_bubbles_with_trace_headers(monkeypatch):
     # Keep mock mode enabled from fixture so fin client uses requests.request path we patch
     monkeypatch.setattr(fin.requests, "request", _fail_request)
 
-    client = httpx.Client(transport=ASGITransport(app=aggregator_app), base_url="http://testserver")
+    client = TestClient(aggregator_app)
     r = client.get("/finastra/b2b/collaterals", headers={"Authorization": "Bearer test"})
     assert r.status_code == 502
     # FastAPI serializes detail; content may be empty string in some adapters
@@ -133,7 +132,7 @@ def test_error_bubbles_with_trace_headers(monkeypatch):
 @pytest.mark.skipif(not os.getenv("TEST_COLLATERAL_ID_PRIMARY"), reason="live collateral id not provided")
 def test_live_get_collateral():
     # Requires valid env for live Finastra access and TEST_COLLATERAL_ID_PRIMARY
-    client = httpx.Client(transport=ASGITransport(app=aggregator_app), base_url="http://testserver")
+    client = TestClient(aggregator_app)
     cid = os.environ["TEST_COLLATERAL_ID_PRIMARY"]
     r = client.get(f"/finastra/b2b/collaterals/{cid}", headers={"Authorization": "Bearer test"})
     assert r.status_code in (200, 404)
