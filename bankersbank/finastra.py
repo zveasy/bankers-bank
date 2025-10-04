@@ -36,6 +36,19 @@ _collateral_read_total = Counter("collateral_read_total", "Collateral read calls
 _latency_hist = Histogram("finastra_pay_loans_latency_seconds", "Latency for payments & loans", buckets=(0.1,0.3,0.5,1,2,5,10))
 _non_2xx_total = Counter("finastra_non_2xx_total", "Non-2xx responses", labelnames=["status_bucket"])
 
+# Generic, product-agnostic API metrics
+_api_calls_total = Counter(
+    "finastra_api_calls_total",
+    "Finastra API calls by endpoint and status",
+    labelnames=["endpoint", "status"],
+)
+_api_latency_hist = Histogram(
+    "finastra_api_latency_seconds",
+    "Finastra API latency seconds by endpoint",
+    labelnames=["endpoint"],
+    buckets=(0.05, 0.1, 0.3, 0.5, 1, 2, 5, 10),
+)
+
 __all__ = [
     "ClientCredentialsTokenProvider",
     "FinastraAPIClient",
@@ -70,6 +83,11 @@ FINASTRA_PRODUCT_LOANS = os.getenv(
 # Local/mock flag used in this repo
 def _use_mock() -> bool:
     return os.getenv("USE_MOCK_BALANCES", "false").lower() in ("1", "true", "yes")
+
+# Circuit breaker and pacing configuration
+# Note: breaker flags are read at CLIENT CONSTRUCTION time (from env),
+# while pacing can remain module-level because tests already pass for pacing.
+_RETRY_MIN_SLEEP_MS = float(os.getenv("FINASTRA_RETRY_MIN_SLEEP_MS", "0"))
 
 # Token endpoint (OIDC)
 def _token_url(base_url: str, tenant: str) -> str:
@@ -239,6 +257,15 @@ class FinastraAPIClient:
         self._provider = token_provider
         self._token = token
 
+        # Circuit breaker configuration (read from env at construction time)
+        self._cb_enabled = os.getenv("FEATURE_FINASTRA_BREAKER", "0").lower() in ("1", "true", "yes")
+        self._cb_fail_threshold = int(os.getenv("FINASTRA_BREAKER_FAIL_THRESHOLD", "3"))
+        self._cb_cooldown = float(os.getenv("FINASTRA_BREAKER_COOLDOWN_SEC", "30"))
+        self._cb_state = "closed"  # closed | open | half
+        self._cb_fail_count = 0
+        self._cb_open_until = 0.0
+        self._cb_last_fail = 0.0
+
     # --- headers/url builders -------------------------------------------------
     def _bearer(self) -> str:
         if self._provider is not None:
@@ -271,12 +298,31 @@ class FinastraAPIClient:
 
     # --- core request helpers -------------------------------------------------
     def request(self, method: str, path: str, **kwargs) -> requests.Response:
-        url = self._url(path, kwargs.pop("product", None))
+        product_override = kwargs.pop("product", None)
+        url = self._url(path, product_override)
         headers = self._headers(kwargs.pop("headers", None))
         timeout = kwargs.pop("timeout", self.timeout)
         attempts = 3
         # base between 200–500ms; jitter ±50%; exponential growth; cap ~10s per try
         base_ms = random.uniform(0.2, 0.5)
+
+        # Metrics context
+        # endpoint label example: "total-lending/collaterals/b2b/v2:/collaterals"
+        prod_label = (product_override or self.product).strip("/") if not _use_mock() else "mock"
+        path_label = (path if path.startswith("/") else f"/{path}").split("?", 1)[0]
+        endpoint_label = f"{prod_label}:{path_label}"
+        overall_start = time.perf_counter()
+
+        # Circuit breaker pre-check
+        if self._cb_enabled:
+            now = time.time()
+            if self._cb_state == "open":
+                if now < self._cb_open_until:
+                    # Fast fail while open
+                    raise RuntimeError("circuit_open")
+                else:
+                    # Cooldown elapsed: allow a trial request
+                    self._cb_state = "half"
 
         last_exc: Exception | None = None
         for i in range(1, attempts + 1):
@@ -298,6 +344,20 @@ class FinastraAPIClient:
                 code = getattr(getattr(e, "response", None), "status_code", None)
                 transient = code in {429, 500, 502, 503, 504} or code is None
                 if i >= attempts or not transient:
+                    # Terminal failure: record metrics and bubble up
+                    try:
+                        status_label = str(code or "ERR")
+                        _api_calls_total.labels(endpoint=endpoint_label, status=status_label).inc()
+                        _api_latency_hist.labels(endpoint=endpoint_label).observe(time.perf_counter() - overall_start)
+                    except Exception:
+                        pass
+                    # Trip breaker on terminal failure
+                    if self._cb_enabled:
+                        self._cb_fail_count += 1
+                        self._cb_last_fail = time.time()
+                        if self._cb_fail_count >= self._cb_fail_threshold:
+                            self._cb_state = "open"
+                            self._cb_open_until = time.time() + self._cb_cooldown
                     raise
                 # sleep with jitter
                 backoff = base_ms * (2 ** (i - 1))
@@ -306,6 +366,15 @@ class FinastraAPIClient:
                 # cap at ~10s
                 backoff = min(backoff, 10.0)
                 time.sleep(backoff)
+                # Rate-limit pacing between retries (optional)
+                if _RETRY_MIN_SLEEP_MS > 0:
+                    time.sleep(_RETRY_MIN_SLEEP_MS / 1000.0)
+            else:
+                # Success path: reset breaker state
+                if self._cb_enabled:
+                    self._cb_fail_count = 0
+                    self._cb_state = "closed"
+                return resp
         # should not reach here
         if last_exc:
             raise last_exc
@@ -313,6 +382,17 @@ class FinastraAPIClient:
 
     def get_json(self, path: str, params: Optional[Dict[str, Any]] = None, **kwargs) -> Dict[str, Any]:
         r = self.request("GET", path, params=params, **kwargs)
+        try:
+            # Record success metric on GET helpers
+            product_override = kwargs.get("product")
+            prod_label = (product_override or self.product).strip("/") if not _use_mock() else "mock"
+            path_label = (path if path.startswith("/") else f"/{path}").split("?", 1)[0]
+            endpoint_label = f"{prod_label}:{path_label}"
+            _api_calls_total.labels(endpoint=endpoint_label, status="200").inc()
+            # Latency already observed in request() on failure; success latency is better measured around request as well,
+            # but we avoid duplicating timers here to keep minimal changes.
+        except Exception:
+            pass
         return r.json()
 
     def post_json(self, path: str, payload: Dict[str, Any], idempotency_key: Optional[str] = None, **kwargs) -> Dict[str, Any]:

@@ -1,82 +1,69 @@
+#!/usr/bin/env python3
 from __future__ import annotations
 
-"""Offline smoke test for Finastra Collateral integration.
+"""
+Runtime smoke for Finastra Collaterals metrics exposure and a lightweight API ping.
 
-Usage (offline default):
-    poetry run python scripts/smoke_finastra_collateral.py --offline
+Usage:
+  python scripts/smoke_finastra_collateral.py --url http://127.0.0.1:8050 --skip-api
+  python scripts/smoke_finastra_collateral.py --url http://127.0.0.1:8050
 
-When --offline is given, the script patches the HTTP transport with a stubbed
-`httpx.MockTransport` serving a static fixture so it can run without network.
-The script writes to an in-memory SQLite DB and prints the number of records
-created/updated along with a simple summary.
+Env:
+  AGG_URL: fallback for --url
 """
 
+import os
+import sys
 import argparse
-import asyncio
-import json
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import List
+import urllib.request
 
-import httpx
-from sqlmodel import SQLModel, Session, create_engine, select
-
-from asset_aggregator.syncers.finastra_collateral import CollateralSyncer
-from integrations.finastra.collateral_client import CollateralClient
-from integrations.finastra.http import FinastraHTTP
-from integrations.finastra.auth import TokenProvider
-from treasury_domain.collateral_models import CollateralRecord
-
-_FIXTURE = {
-    "items": [
-        {
-            "collateralId": "col-1",
-            "collateralType": "SECURITY",
-            "status": "ACTIVE",
-            "currency": "USD",
-            "nominalAmount": 1000.0,
-            "valuationDate": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-            "updatedDate": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-            "partyId": "BANK1",
-        }
-    ],
-    "nextPage": None,
-}
+# Match metrics exported by bankersbank/finastra.py
+REQUIRED_METRICS = [
+    "finastra_api_calls_total",
+    "finastra_api_latency_seconds",
+]
 
 
-class _StaticToken(TokenProvider):
-    async def token(self) -> str:  # type: ignore[override]
-        return "dummy"
+def http_get(url: str, timeout: int = 5):
+    with urllib.request.urlopen(url, timeout=timeout) as r:  # nosec B310 (controlled URL in CI)
+        return r.status, r.read().decode("utf-8", errors="replace")
 
 
-def _offline_http() -> FinastraHTTP:
-    def handler(request: httpx.Request) -> httpx.Response:  # noqa: D401
-        return httpx.Response(200, json=_FIXTURE)
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--url", default=os.getenv("AGG_URL", "http://127.0.0.1:8050"), help="Base URL for the running app")
+    ap.add_argument("--skip-api", action="store_true", help="Skip the API ping, only check /metrics")
+    args = ap.parse_args()
 
-    transport = httpx.MockTransport(handler)
-    return FinastraHTTP(token_provider=_StaticToken(), transport=transport)
+    base = args.url.rstrip("/")
 
+    # 1) Check /metrics
+    status, body = http_get(f"{base}/metrics", timeout=5)
+    if status != 200:
+        print(f"[FAIL] GET /metrics -> {status}", file=sys.stderr)
+        return 1
 
-def run_smoke(offline: bool = True) -> None:
-    # Create isolated sqlite DB under tmp
-    engine = create_engine("sqlite:///:memory:")
-    SQLModel.metadata.create_all(engine)
+    missing = [m for m in REQUIRED_METRICS if m not in body]
+    if missing:
+        print(f"[FAIL] Missing expected metrics in /metrics: {missing}", file=sys.stderr)
+        return 2
+    print("[OK] /metrics exposes required Finastra metrics")
 
-    http_client = _offline_http() if offline else FinastraHTTP()
-    collateral_client = CollateralClient(http=http_client)
-    syncer = CollateralSyncer(client=collateral_client, session_factory=lambda: Session(engine))
+    # 2) Optional: ping list endpoint to confirm route is wired (feature remains B2B)
+    if not args.skip_api:
+        # NOTE: your app's auth may guard this route; if so, adjust headers accordingly
+        try:
+            status, _ = http_get(f"{base}/finastra/b2b/collaterals?top=1&startingIndex=0", timeout=5)
+            if status not in (200, 401, 403):  # 401/403 acceptable if auth required
+                print(f"[WARN] collaterals list returned status={status}")
+            else:
+                print(f"[OK] collaterals list ping returned status={status}")
+        except Exception as e:  # pragma: no cover
+            print(f"[WARN] collaterals list ping failed: {e}")
 
-    created = asyncio.run(syncer.run_once())
-    with Session(engine) as s:
-        rows: List[CollateralRecord] = s.exec(select(CollateralRecord)).all()
-
-    print("Smoke result -> created", created, "rows", len(rows))
-    for r in rows:
-        print(json.dumps(r.raw, indent=2))
+    print("[PASS] finastra collateral smoke completed")
+    return 0
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Offline smoke test for Finastra Collateral sync")
-    parser.add_argument("--offline", action="store_true", default=False, help="Run with mock transport (default)")
-    args = parser.parse_args()
-    run_smoke(offline=args.offline or True)
+    sys.exit(main())

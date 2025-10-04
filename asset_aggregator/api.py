@@ -11,7 +11,7 @@ from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 import asyncio
 
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query, Path
 from common.auth import require_token
 from prometheus_client import make_asgi_app
 from pydantic import BaseModel
@@ -219,11 +219,24 @@ def _feature_enabled() -> bool:
     summary="List Finastra collaterals (B2B)",
 )
 def list_finastra_collaterals(
-    top: int = Query(10, ge=1, le=100),
-    startingIndex: int = Query(0, ge=0),
+    top: int = Query(
+        10,
+        ge=1,
+        le=100,
+        description="Maximum number of items to return (1-100)",
+    ),
+    startingIndex: int = Query(
+        0,
+        ge=0,
+        description="Zero-based index to start listing from",
+    ),
     _: None = Depends(require_token),
 ):
-    """Proxy to Finastra Collaterals list endpoint with simple pagination."""
+    """Proxy to Finastra Collaterals list endpoint with simple pagination.
+
+    - Product: B2B `total-lending/collaterals`
+    - Requires valid Finastra client credentials.
+    """
     if not _feature_enabled():
         raise HTTPException(status_code=404, detail="feature_disabled")
     t0 = time.perf_counter()
@@ -237,6 +250,8 @@ def list_finastra_collaterals(
                 "endpoint": "/finastra/b2b/collaterals",
                 "status": 200,
                 "elapsed_ms": int((time.perf_counter() - t0) * 1000),
+                "tenant": FINASTRA_TENANT,
+                "product": os.getenv("FINASTRA_PRODUCT_COLLATERAL", "total-lending/collaterals/b2b/v2"),
             },
         )
         return data
@@ -271,6 +286,8 @@ def list_finastra_collaterals(
                 "endpoint": "/finastra/b2b/collaterals",
                 "status": status,
                 "elapsed_ms": int((time.perf_counter() - t0) * 1000),
+                "tenant": FINASTRA_TENANT,
+                "product": os.getenv("FINASTRA_PRODUCT_COLLATERAL", "total-lending/collaterals/b2b/v2"),
             },
         )
         raise HTTPException(status_code=status, detail=str(e))
@@ -281,8 +298,17 @@ def list_finastra_collaterals(
     tags=["finastra"],
     summary="Get Finastra collateral by ID (B2B)",
 )
-def get_finastra_collateral(collateral_id: str, _: None = Depends(require_token)):
-    """Proxy to Finastra Collaterals get by ID endpoint."""
+def get_finastra_collateral(
+    collateral_id: str = Path(
+        ..., description="Primary key of the collateral resource in Finastra"
+    ),
+    _: None = Depends(require_token),
+):
+    """Proxy to Finastra Collaterals get by ID endpoint.
+
+    - Product: B2B `total-lending/collaterals`
+    - Returns 404 if not found in Finastra.
+    """
     if not _feature_enabled():
         raise HTTPException(status_code=404, detail="feature_disabled")
     t0 = time.perf_counter()
@@ -295,6 +321,8 @@ def get_finastra_collateral(collateral_id: str, _: None = Depends(require_token)
                 "endpoint": f"/finastra/b2b/collaterals/{collateral_id}",
                 "status": 200,
                 "elapsed_ms": int((time.perf_counter() - t0) * 1000),
+                "tenant": FINASTRA_TENANT,
+                "product": os.getenv("FINASTRA_PRODUCT_COLLATERAL", "total-lending/collaterals/b2b/v2"),
             },
         )
         return data
@@ -328,9 +356,63 @@ def get_finastra_collateral(collateral_id: str, _: None = Depends(require_token)
                 "endpoint": f"/finastra/b2b/collaterals/{collateral_id}",
                 "status": status,
                 "elapsed_ms": int((time.perf_counter() - t0) * 1000),
+                "tenant": FINASTRA_TENANT,
+                "product": os.getenv("FINASTRA_PRODUCT_COLLATERAL", "total-lending/collaterals/b2b/v2"),
             },
         )
         raise HTTPException(status_code=status, detail=str(e))
+
+
+# --------------------------------------------------------------------------------------
+# Finastra B2C – Accounts & Balances (stubs behind feature flag)
+# --------------------------------------------------------------------------------------
+
+
+def _b2c_enabled() -> bool:
+    return os.getenv("FEATURE_FINASTRA_B2C", "0").lower() in ("1", "true", "yes", "on")
+
+
+@app.get(
+    "/finastra/b2c/accounts",
+    tags=["finastra"],
+    summary="[Stub] List consumer accounts (B2C)",
+)
+def list_finastra_accounts_stub(_: None = Depends(require_token)):
+    if not _b2c_enabled():
+        raise HTTPException(status_code=404, detail="feature_disabled")
+    t0 = time.perf_counter()
+    # Mocked response for preparation; no live Finastra call yet
+    data = {"items": [{"id": "ACC123", "type": "DDA"}]}
+    logging.getLogger(__name__).info(
+        "fin_b2c_accounts_stub",
+        extra={
+            "endpoint": "/finastra/b2c/accounts",
+            "status": 200,
+            "elapsed_ms": int((time.perf_counter() - t0) * 1000),
+        },
+    )
+    return data
+
+
+@app.get(
+    "/finastra/b2c/balances",
+    tags=["finastra"],
+    summary="[Stub] List consumer balances (B2C)",
+)
+def list_finastra_balances_stub(_: None = Depends(require_token)):
+    if not _b2c_enabled():
+        raise HTTPException(status_code=404, detail="feature_disabled")
+    t0 = time.perf_counter()
+    data = {"items": [{"accountId": "ACC123", "booked": {"amount": 100.0, "currency": "USD"}}]}
+    logging.getLogger(__name__).info(
+        "fin_b2c_balances_stub",
+        extra={
+            "endpoint": "/finastra/b2c/balances",
+            "status": 200,
+            "elapsed_ms": int((time.perf_counter() - t0) * 1000),
+        },
+    )
+    return data
 
 
 # --------------------------------------------------------------------------------------

@@ -172,4 +172,6 @@ jobs:
           FINASTRA_TENANT: sandbox
           FINASTRA_SCOPE: ${{ secrets.FINASTRA_SCOPE }}
           TEST_COLLATERAL_ID_PRIMARY: ${{ secrets.TEST_COLLATERAL_ID_PRIMARY }}
-        run: pytest -q tests/test_finastra_client.py -k test_live_list_collaterals_smoke
+        run: |
+          pytest -q tests/test_finastra_client.py -k test_live_list_collaterals_smoke
+          pytest -q tests/test_finastra_client_live_by_id.py -k test_live_get_collateral_smoke
