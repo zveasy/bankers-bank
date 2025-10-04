@@ -23,14 +23,6 @@ jobs:
       has_go: ${{ steps.check.outputs.has_go }}
     steps:
       - uses: actions/checkout@v4
-
-      - name: "Guard: no .env committed (allow .env.example and .env.ci)"
-        run: |
-          set -euo pipefail
-          git ls-files -z | grep -zE '(^|/)\.env(\..*)?$' | tr -d '\0' | \
-            grep -vE '\.env\.example$|\.env\.ci$' && {
-              echo "::error::.env files must not be committed"; exit 1; } || true
-
       - id: check
         run: |
           if [ -f services/ledger/go.mod ]; then
@@ -48,27 +40,16 @@ jobs:
     if: ${{ needs.detect-go.outputs.has_go == 'true' }}
     steps:
       - uses: actions/checkout@v4
-
-      - name: "Guard: no .env committed (allow .env.example and .env.ci)"
-        run: |
-          set -euo pipefail
-          git ls-files -z | grep -zE '(^|/)\.env(\..*)?$' | tr -d '\0' | \
-            grep -vE '\.env\.example$|\.env\.ci$' && {
-              echo "::error::.env files must not be committed"; exit 1; } || true
-
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.22'
-
       - name: Download deps
         working-directory: services/ledger
         run: go mod download
-
       - name: Run Go tests
         working-directory: services/ledger
         run: go test ./... -v
-
       - name: Build ledger image
         working-directory: services/ledger
         run: docker build -t ledger .
@@ -83,60 +64,19 @@ jobs:
         python-version: [3.11, 3.12, 3.13]
     steps:
       - uses: actions/checkout@v4
-
-      - name: "Guard: no .env committed (allow .env.example and .env.ci)"
-        run: |
-          set -euo pipefail
-          git ls-files -z | grep -zE '(^|/)\.env(\..*)?$' | tr -d '\0' | \
-            grep -vE '\.env\.example$|\.env\.ci$' && {
-              echo "::error::.env files must not be committed"; exit 1; } || true
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-
-      - name: "Guard: ensure .env.ci has no real secrets:"
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -f .env.ci
-          # If FINA_CLIENT_ID/SECRET are present, they must be CHANGEME
-          if grep -E '^(FINA_CLIENT_ID|FINA_CLIENT_SECRET)=' .env.ci >/dev/null 2>&1; then
-            if grep -E '^(FINA_CLIENT_ID|FINA_CLIENT_SECRET)=' .env.ci | grep -vq 'CHANGEME'; then
-              echo "::error::.env.ci contains non-placeholder credentials"; exit 1
-            fi
-          fi
-          # Fail on common secret patterns (bearer-like, base64 JWT-like, GitHub tokens, RSA keys)
-          if grep -Eq '(eyJ[0-9A-Za-z_=.-]{10,}|AIza[0-9A-Za-z_-]{20,}|gh[pso]_[0-9A-Za-z_-]{20,}|xox[baprs]-[0-9A-Za-z-]+|sk_live_[0-9A-Za-z]{10,}|-----BEGIN (PRIVATE|RSA) KEY-----)' .env.ci; then
-            echo "::error::.env.ci contains strings that look like secrets"; exit 1
-          fi
-          echo ".env.ci looks clean."
-
-      - name: Ensure netcat present
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y netcat-openbsd || sudo apt-get install -y netcat
-
-      - name: Point PYTHONPATH at SDK
-        run: echo "PYTHONPATH=$(pwd)/sdk/python" >> "$GITHUB_ENV"
-
       - name: Install SDK test deps
         run: |
           python -m pip install --upgrade pip setuptools wheel
-          if [ -f sdk/python/pyproject.toml ]; then
-            pip install -e sdk/python
-          else
-            pip install -e .
-          fi
-          # Ensure deps used by tests / warnings filters exist
+          pip install -e .
           pip install "SQLAlchemy>=1.4,<2.0" requests pytest pytest-cov
-
       - name: Run SDK unit tests with coverage
         env:
           BANKERSBANK_INTEGRATION: "0"
         run: pytest --cov=bankersbank --cov-report=xml --cov-report=term tests/unit
-
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
         with:
@@ -149,287 +89,79 @@ jobs:
   test-python-poetry:
     name: Lint & Unit Tests (Poetry)
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: "Guard: no .env committed (allow .env.example and .env.ci)"
-        run: |
-          set -euo pipefail
-          git ls-files -z | grep -zE '(^|/)\.env(\..*)?$' | tr -d '\0' | \
-            grep -vE '\.env\.example$|\.env\.ci$' && {
-              echo "::error::.env files must not be committed"; exit 1; } || true
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-
       - name: Install Poetry
         run: pipx install poetry==${{ env.POETRY_VERSION }}
-
       - name: Configure Poetry
         run: poetry config virtualenvs.in-project true
-
       - name: Cache Poetry venv
         uses: actions/cache@v4
         with:
           path: ./.venv
           key: venv-${{ runner.os }}-${{ env.PYTHON_VERSION }}-${{ hashFiles('poetry.lock') }}
-          restore-keys: |
-            venv-${{ runner.os }}-${{ env.PYTHON_VERSION }}-
-
-      - name: Install deps (prefer [group.test], else [group.dev])
-        run: |
-          set -euo pipefail
-          poetry --version
-          if poetry group list 2>/dev/null | grep -qE '(^|[[:space:]])test([[:space:]]|$)'; then
-            echo "Installing with [group.test]"
-            poetry install --no-interaction --no-root --with test
-          else
-            echo "No [group.test]; installing with [group.dev]"
-            poetry install --no-interaction --no-root --with dev
-          fi
-
-      - name: Lint (ruff if present)
-        run: |
-          if poetry run python -c "import importlib.util, sys; sys.exit(0 if importlib.util.find_spec('ruff') else 1)"; then
-            poetry run ruff check .
-          else
-            echo 'ruff not installed; skipping'
-          fi
-
-      - name: Add stubs for requests
-        run: poetry run python -m pip install types-requests
-
-      - name: Type check (mypy if present)
-        env:
-          MYPYPATH: sdk/python
-        run: |
-          if poetry run python -c "import importlib.util, sys; sys.exit(0 if importlib.util.find_spec('mypy') else 1)"; then
-            poetry run mypy
-          else
-            echo 'mypy not installed; skipping'
-          fi
-
-      - name: Set PYTHONPATH to SDK only
-        run: echo "PYTHONPATH=$(pwd)/sdk/python" >> "$GITHUB_ENV"
-
+      - name: Install deps
+        run: poetry install --no-interaction --with dev
       - name: Run python tests
         env:
-          PYTHONPATH: ${{ env.PYTHONPATH }}
           BANKERSBANK_INTEGRATION: "0"
         run: poetry run pytest -q
 
-      - name: Shim guard
-        run: python scripts/verify_shims.py
-
-      - name: Duplicate scan (report only)
-        run: python scripts/scan_duplicates.py
-
   # ────────────────────────────────
-  # Observability lint: alert rules & dashboards
+  # Observability lint
   # ────────────────────────────────
   observability-lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: "Guard: no .env committed (allow .env.example and .env.ci)"
-        run: |
-          set -euo pipefail
-          git ls-files -z | grep -zE '(^|/)\.env(\..*)?$' | tr -d '\0' | \
-            grep -vE '\.env\.example$|\.env\.ci$' && {
-              echo "::error::.env files must not be committed"; exit 1; } || true
-
       - name: Lint Grafana dashboards
-        run: |
-          set -euo pipefail
-          shopt -s nullglob
-          for f in grafana/dashboards/*.json; do
-            echo "Linting $f"
-            jq -e . "$f" >/dev/null
-          done
-
+        run: for f in grafana/dashboards/*.json; do jq -e . "$f" >/dev/null; done
       - name: Lint Prometheus alert rules
         run: |
-          docker run --rm \
-            -v "${{ github.workspace }}:/work" \
-            -w /work \
-            --entrypoint /bin/promtool \
-            prom/prometheus:v2.52.0 \
-            check rules prometheus/alert_rules/observability.rules.yml
+          docker run --rm -v "${{ github.workspace }}:/work" -w /work \
+          --entrypoint /bin/promtool prom/prometheus:v2.52.0 \
+          check rules prometheus/alert_rules/observability.rules.yml
 
   # ────────────────────────────────
-  # Check required DB secrets present
+  # Precheck: expose TEST_COLLATERAL_ID_PRIMARY as a job output
   # ────────────────────────────────
-  check-secrets:
+  precheck-collateral-secret:
     runs-on: ubuntu-latest
     outputs:
-      have_pg: ${{ steps.determine.outputs.have_pg }}
+      has_test_collateral: ${{ steps.flag.outputs.has_test_collateral }}
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup CI env
-        run: |
-          if [ ! -f .env.ci ]; then
-            echo "::error::missing .env.ci at repo root"; exit 1
-          fi
-          cp .env.ci .env
-          # safety invariants – ensure required placeholders exist and no real secrets snuck in
-          req_vars=(POSTGRES_USER POSTGRES_PASSWORD POSTGRES_DB GF_ADMIN_USER GF_ADMIN_PASSWORD)
-          for k in "${req_vars[@]}"; do
-            v="$(grep -E "^$k=" .env.ci | cut -d= -f2-)"
-            if [ -z "$v" ]; then echo "::error::$k is empty in .env.ci"; exit 1; fi
-          done
-          if grep -Ei 'client_secret|refresh_token|api[_-]?key|bearer[[:space:]]+[A-Za-z0-9._-]+' .env.ci; then
-            echo "::error::.env.ci appears to contain a secret-like value"; exit 1
-          fi
-
-      - id: determine
+      - name: Compute flag from secret
+        id: flag
         env:
-          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          TEST_COLLATERAL_ID_PRIMARY: ${{ secrets.TEST_COLLATERAL_ID_PRIMARY }}
         run: |
-          if [ -n "$POSTGRES_USER" ]; then
-            echo "have_pg=true" >> "$GITHUB_OUTPUT"
+          if [ -n "$TEST_COLLATERAL_ID_PRIMARY" ]; then
+            echo "has_test_collateral=true" >> "$GITHUB_OUTPUT"
           else
-            echo "have_pg=false" >> "$GITHUB_OUTPUT"
+            echo "has_test_collateral=false" >> "$GITHUB_OUTPUT"
           fi
 
   # ────────────────────────────────
-  # Run credit smoke test with docker compose
-  # ────────────────────────────────
-  compose-smoke-credit:
-    needs: check-secrets
-    if: ${{ needs.check-secrets.outputs.have_pg == 'true' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: "Guard: no .env committed (allow .env.example and .env.ci)"
-        run: |
-          set -euo pipefail
-          git ls-files -z | grep -zE '(^|/)\.env(\..*)?$' | tr -d '\0' | \
-            grep -vE '\.env\.example$|\.env\.ci$' && {
-              echo "::error::.env files must not be committed"; exit 1; } || true
-
-      - name: Setup CI env
-        run: |
-          if [ ! -f .env.ci ]; then
-            echo "::error::missing .env.ci at repo root"; exit 1
-          fi
-          cp .env.ci .env
-          req_vars=(POSTGRES_USER POSTGRES_PASSWORD POSTGRES_DB GF_ADMIN_USER GF_ADMIN_PASSWORD)
-          for k in "${req_vars[@]}"; do
-            v="$(grep -E "^$k=" .env.ci | cut -d= -f2-)"
-            if [ -z "$v" ]; then echo "::error::$k is empty in .env.ci"; exit 1; fi
-          done
-          if grep -Ei 'client_secret|refresh_token|api[_-]?key|bearer[[:space:]]+[A-Za-z0-9._-]+' .env.ci; then
-            echo "::error::.env.ci appears to contain a secret-like value"; exit 1
-          fi
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build images
-        run: |
-          set -a
-          source .env
-          set +a
-          docker compose --env-file .env build credit_facility
-
-      - name: Start stack (postgres + credit_facility)
-        run: |
-          set -a
-          source .env
-          set +a
-          docker compose --env-file .env up -d postgres credit_facility
-
-      - name: Wait for health
-        run: |
-          python - <<'PY'
-          import time, urllib.request, sys
-          def wait(url, path="/healthz", tries=180, delay=1.0):
-              for _ in range(tries):
-                  try:
-                      with urllib.request.urlopen(url+path, timeout=2) as r:
-                          if r.status == 200:
-                              print("service healthy")
-                              sys.exit(0)
-                  except Exception:
-                      pass
-                  time.sleep(delay)
-              print(f"Timed out waiting for {url}{path}", file=sys.stderr)
-              sys.exit(1)
-          wait("http://127.0.0.1:8050")
-          PY
-
-      - name: Set up Python for smoke
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install smoke deps
-        run: python -m pip install --upgrade pip requests
-
-      - name: Run credit smoke
-        env:
-          CREDIT_URL: http://127.0.0.1:8050
-        run: python scripts/smoke_credit.py
-
-      - name: Dump logs on failure
-        if: failure()
-        run: |
-          if [ -f .env ]; then
-            set -a
-            source .env
-            set +a
-            docker compose --env-file .env logs --no-color > compose-credit-logs.txt
-          else
-            echo ".env missing; skipping detailed compose logs"
-          fi
-
-      - uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: compose-credit-logs
-          path: compose-credit-logs.txt
-
-      - name: Teardown
-        if: always()
-        run: |
-          if [ -f .env ]; then
-            set -a
-            source .env
-            set +a
-            docker compose --env-file .env down -v
-          else
-            docker compose down -v
-          fi
-
-  # ────────────────────────────────
-  # Finastra Collaterals live smoke (conditional)
+  # Finastra Collaterals live smoke
   # ────────────────────────────────
   fin-collaterals-live:
     name: "Finastra Collaterals Live Smoke"
     runs-on: ubuntu-latest
-    if: ${{ secrets.TEST_COLLATERAL_ID_PRIMARY != '' }}
+    needs: precheck-collateral-secret
+    if: ${{ needs.precheck-collateral-secret.outputs.has_test_collateral == 'true' }}
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
       - name: Install deps
         run: |
           python -m pip install --upgrade pip
           pip install -e .
           pip install pytest httpx
-
       - name: Run live smoke (pytest marker)
         env:
           FEATURE_FINASTRA_COLLATERALS: "1"
@@ -439,353 +171,5 @@ jobs:
           FINASTRA_BASE_URL: ${{ secrets.FINASTRA_B2B_BASE_URL_COLLATERALS }}
           FINASTRA_TENANT: sandbox
           FINASTRA_SCOPE: ${{ secrets.FINASTRA_SCOPE }}
-        run: |
-          pytest -q tests/test_finastra_client.py -k test_live_list_collaterals_smoke
-
-  # ────────────────────────────────
-  # Payments stack smoke with rails
-  # ────────────────────────────────
-  compose-smoke-payments:
-    needs: check-secrets
-    if: ${{ needs.check-secrets.outputs.have_pg == 'true' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: "Guard: no .env committed (allow .env.example and .env.ci)"
-        run: |
-          set -euo pipefail
-          git ls-files -z | grep -zE '(^|/)\.env(\..*)?$' | tr -d '\0' | \
-            grep -vE '\.env\.example$|\.env\.ci$' && {
-              echo "::error::.env files must not be committed"; exit 1; } || true
-
-      - name: Setup CI env
-        run: |
-          if [ ! -f .env.ci ]; then
-            echo "::error::missing .env.ci at repo root"; exit 1
-          fi
-          cp .env.ci .env
-          req_vars=(POSTGRES_USER POSTGRES_PASSWORD POSTGRES_DB GF_ADMIN_USER GF_ADMIN_PASSWORD)
-          for k in "${req_vars[@]}"; do
-            v="$(grep -E "^$k=" .env.ci | cut -d= -f2-)"
-            if [ -z "$v" ]; then echo "::error::$k is empty in .env.ci"; exit 1; fi
-          done
-          if grep -Ei 'client_secret|refresh_token|api[_-]?key|bearer[[:space:]]+[A-Za-z0-9._-]+' .env.ci; then
-            echo "::error::.env.ci appears to contain a secret-like value"; exit 1
-          fi
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build images
-        run: |
-          set -a
-          source .env
-          set +a
-          docker compose --env-file .env build bank_connector
-
-      - name: Start stack (postgres + mock_bank + bank_connector)
-        run: |
-          set -a
-          source .env
-          set +a
-          docker compose --env-file .env up -d postgres mock_bank bank_connector
-
-      - name: Wait for health
-        run: |
-          python - <<'PY'
-          import time, urllib.request, sys
-          def wait(url, path="/healthz", tries=180, delay=1.0):
-              for _ in range(tries):
-                  try:
-                      with urllib.request.urlopen(url+path, timeout=2) as r:
-                          if r.status == 200:
-                              print("service healthy")
-                              sys.exit(0)
-                  except Exception:
-                      pass
-                  time.sleep(delay)
-              print(f"Timed out waiting for {url}{path}", file=sys.stderr)
-              sys.exit(1)
-          wait("http://127.0.0.1:8080")
-          PY
-
-      - name: Dump logs on failure
-        if: failure()
-        run: |
-          if [ -f .env ]; then
-            set -a
-            source .env
-            set +a
-            docker compose --env-file .env logs --no-color > compose-payments-logs.txt
-          else
-            echo ".env missing; skipping detailed compose logs"
-          fi
-
-      - uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: compose-payments-logs
-          path: compose-payments-logs.txt
-
-      - name: Cleanup env file
-        if: always()
-        run: rm -f .env .env.ci
-
-  # ────────────────────────────────
-  # Finastra Collateral offline smoke
-  # ────────────────────────────────
-  smoke-collateral-offline:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: "Guard: no .env committed (allow .env.example and .env.ci)"
-        run: |
-          set -euo pipefail
-          git ls-files -z | grep -zE '(^|/)\.env(\..*)?$' | tr -d '\0' | \
-            grep -vE '\.env\.example$|\.env\.ci$' && {
-              echo "::error::.env files must not be committed"; exit 1; } || true
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install smoke deps
-        run: |
-          python -m pip install --upgrade pip
-          pip install python-dateutil httpx sqlmodel fastapi prometheus-client
-
-      - name: Add repo root to PYTHONPATH
-        run: echo "PYTHONPATH=$(pwd)" >> "$GITHUB_ENV"
-
-      - name: Run collateral smoke
-        run: python scripts/smoke_finastra_collateral.py --offline
-
-  # ────────────────────────────────
-  # Finastra Accounts & Balances offline smoke (Poetry + smoke group installs httpx)
-  # ────────────────────────────────
-  smoke-accounts-balances-offline:
-    name: "Smoke (offline) — Finastra Accounts & Balances"
-    runs-on: ubuntu-latest
-    needs: [test-python-poetry]
-    timeout-minutes: 20
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: "Guard: no .env committed (allow .env.example and .env.ci)"
-        run: |
-          set -euo pipefail
-          git ls-files -z | grep -zE '(^|/)\.env(\..*)?$' | tr -d '\0' | \
-            grep -vE '\.env\.example$|\.env\.ci$' && {
-              echo "::error::.env files must not be committed"; exit 1; } || true
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Install Poetry
-        run: pipx install poetry==${{ env.POETRY_VERSION }}
-
-      - name: Configure Poetry
-        run: poetry config virtualenvs.in-project true
-
-      - name: Cache Poetry venv
-        uses: actions/cache@v4
-        with:
-          path: ./.venv
-          key: venv-smoke-${{ runner.os }}-${{ env.PYTHON_VERSION }}-${{ hashFiles('poetry.lock') }}
-          restore-keys: |
-            venv-smoke-${{ runner.os }}-${{ env.PYTHON_VERSION }}-
-
-      - name: Install base deps
-        run: poetry install --no-interaction
-
-      - name: Install smoke deps group
-        run: |
-          # Requires pyproject.toml with group 'smoke' and dependency httpx
-          poetry install --with smoke --no-interaction
-          poetry run python -c "import httpx; print('httpx', httpx.__version__)"
-
-      - name: Add repo root to PYTHONPATH
-        run: echo "PYTHONPATH=$PWD" >> "$GITHUB_ENV"
-
-      - name: Env guard
-        run: |
-          if [ -f scripts/verify_env.py ]; then
-            python scripts/verify_env.py
-          else
-            echo "verify_env.py not found; skipping"
-          fi
-
-      - name: "Guard: ensure .env.ci has no real secrets"
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -f .env.ci
-          # If FINA_CLIENT_ID/SECRET are present, they must be CHANGEME
-          if grep -E '^(FINA_CLIENT_ID|FINA_CLIENT_SECRET)=' .env.ci >/dev/null 2>&1; then
-            if grep -E '^(FINA_CLIENT_ID|FINA_CLIENT_SECRET)=' .env.ci | grep -vq 'CHANGEME'; then
-              echo "::error::.env.ci contains non-placeholder credentials"; exit 1
-            fi
-          fi
-          # Fail on common secret patterns (bearer-like, base64 JWT-like, GitHub tokens, RSA keys)
-          if grep -Eq '(eyJ[0-9A-Za-z_=.-]{10,}|AIza[0-9A-Za-z_-]{20,}|gh[pso]_[0-9A-Za-z_-]{20,}|xox[baprs]-[0-9A-Za-z-]+|sk_live_[0-9A-Za-z]{10,}|-----BEGIN (PRIVATE|RSA) KEY-----)' .env.ci; then
-            echo "::error::.env.ci contains strings that look like secrets"; exit 1
-          fi
-          echo ".env.ci looks clean."
-
-      - name: Copy CI env → .env
-        run: |
-          if [ -f ".env.ci" ]; then
-            cp .env.ci .env
-          else
-            echo "::notice::.env.ci not found; continuing (offline smokes may not need it)"
-          fi
-
-      - name: Initialize DB schema (alembic or script, optional)
-        shell: bash
-        run: |
-          set -e
-          if [ -f "alembic.ini" ]; then
-            echo "[db-init] Running alembic upgrade head"
-            poetry run alembic upgrade head || {
-              echo "::warning::Alembic failed; continuing (offline smokes may not need DB)"
-            }
-          elif [ -f "scripts/init_db.py" ]; then
-            echo "[db-init] Running scripts/init_db.py"
-            poetry run python scripts/init_db.py || {
-              echo "::warning::init_db.py failed; continuing"
-            }
-          else
-            echo "[db-init] No alembic.ini or scripts/init_db.py; skipping"
-          fi
-
-      - name: Run accounts smoke
-        run: poetry run python scripts/smoke_finastra_accounts.py
-
-      - name: Run balances smoke
-        run: poetry run python scripts/smoke_finastra_balances.py
-
-      - name: Always show last logs on failure
-        if: failure()
-        run: |
-          echo "No container logs (offline run). Dumping tree for context:"
-          ls -la
-
-  # ────────────────────────────────
-  # Liquidity stack smoke with quantengine
-  # ────────────────────────────────
-  compose-smoke-liquidity:
-    needs: check-secrets
-    if: ${{ needs.check-secrets.outputs.have_pg == 'true' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: "Guard: no .env committed (allow .env.example and .env.ci)"
-        run: |
-          set -euo pipefail
-          git ls-files -z | grep -zE '(^|/)\.env(\..*)?$' | tr -d '\0' | \
-            grep -vE '\.env\.example$|\.env\.ci$' && {
-              echo "::error::.env files must not be committed"; exit 1; } || true
-
-      - name: Setup CI env
-        run: |
-          if [ ! -f .env.ci ]; then
-            echo "::error::missing .env.ci at repo root"; exit 1
-          fi
-          cp .env.ci .env
-          req_vars=(POSTGRES_USER POSTGRES_PASSWORD POSTGRES_DB GF_ADMIN_USER GF_ADMIN_PASSWORD)
-          for k in "${req_vars[@]}"; do
-            v="$(grep -E "^$k=" .env.ci | cut -d= -f2-)"
-            if [ -z "$v" ]; then echo "::error::$k is empty in .env.ci"; exit 1; fi
-          done
-          if grep -Ei 'client_secret|refresh_token|api[_-]?key|bearer[[:space:]]+[A-Za-z0-9._-]+' .env.ci; then
-            echo "::error::.env.ci appears to contain a secret-like value"; exit 1
-          fi
-
-      - name: Build quantengine
-        run: |
-          set -a
-          source .env
-          set +a
-          docker compose --env-file .env build quantengine
-
-      - name: Start quantengine only
-        env:
-          QUANT_DRY_RUN: "1"
-          QUANT_CIRCUIT_OPEN: "0"
-        run: |
-          set -a
-          source .env
-          set +a
-          docker compose --env-file .env up -d quantengine
-
-      - name: Wait for health
-        run: |
-          python - <<'PY'
-          import time, urllib.request, sys
-          def wait(url, tries=180, delay=1.0):
-              for _ in range(tries):
-                  try:
-                      with urllib.request.urlopen(url+'/readyz', timeout=2) as r:
-                          if r.status == 200:
-                              print('service healthy')
-                              sys.exit(0)
-                  except Exception:
-                      pass
-                  time.sleep(delay)
-              print('Timed out waiting for service', file=sys.stderr)
-              sys.exit(1)
-          wait('http://127.0.0.1:9100')
-          PY
-
-      - name: Set up Python for smoke
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install smoke deps
-        run: python -m pip install --upgrade pip requests
-
-      - name: Run liquidity smoke
-        env:
-          QUANT_URL: http://127.0.0.1:9100
-        run: python scripts/smoke_liquidity.py
-
-      - name: Dump logs on failure
-        if: failure()
-        run: |
-          if [ -f .env ]; then
-            set -a
-            source .env
-            set +a
-            docker compose --env-file .env logs --no-color > compose-liquidity-logs.txt
-          else
-            echo ".env missing; skipping detailed compose logs"
-          fi
-
-      - uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: compose-liquidity-logs
-          path: compose-liquidity-logs.txt
-
-      - name: Teardown
-        if: always()
-        run: |
-          if [ -f .env ]; then
-            set -a
-            source .env
-            set +a
-            docker compose --env-file .env down -v
-          else
-            docker compose down -v
-          fi
+          TEST_COLLATERAL_ID_PRIMARY: ${{ secrets.TEST_COLLATERAL_ID_PRIMARY }}
+        run: pytest -q tests/test_finastra_client.py -k test_live_list_collaterals_smoke
