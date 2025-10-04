@@ -355,7 +355,9 @@ def test_api_metrics_failure_increment(monkeypatch):
     ),
     reason="Live Finastra creds not provided in environment",
 )
-def test_live_list_collaterals_smoke():
+def test_live_list_collaterals_smoke(monkeypatch):
+    # Force non-mock path so product prefix is used
+    monkeypatch.setenv("USE_MOCK_BALANCES", "false")
     # Prefer AUTH URL host to avoid passing a product-specific URL into token provider
     auth_url = os.getenv("FINASTRA_AUTH_URL")
     if auth_url:
@@ -376,13 +378,22 @@ def test_live_list_collaterals_smoke():
     client_id = os.getenv("FINASTRA_CLIENT_ID") or os.getenv("FINASTRA_B2B_CLIENT_ID")
     client_secret = os.getenv("FINASTRA_CLIENT_SECRET") or os.getenv("FINASTRA_B2B_CLIENT_SECRET")
 
-    provider = ClientCredentialsTokenProvider(
-        base_url=base_url,
-        tenant=tenant,
-        client_id=client_id,
-        client_secret=client_secret,
-        scope=os.getenv("FINASTRA_SCOPE", "openid"),
-    )
+    token_url_override = os.getenv("FINASTRA_TOKEN_URL")
+    if token_url_override:
+        provider = ClientCredentialsTokenProvider(
+            token_url=token_url_override,
+            client_id=client_id,
+            client_secret=client_secret,
+            scope=os.getenv("FINASTRA_SCOPE", "openid"),
+        )
+    else:
+        provider = ClientCredentialsTokenProvider(
+            base_url=base_url,
+            tenant=tenant,
+            client_id=client_id,
+            client_secret=client_secret,
+            scope=os.getenv("FINASTRA_SCOPE", "openid"),
+        )
     client = FinastraAPIClient(
         base_url=base_url,
         tenant=tenant,

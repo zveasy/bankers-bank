@@ -28,21 +28,71 @@ except Exception:  # pragma: no cover
     def Counter(*_args, **_kwargs): return _Noop()
     def Histogram(*_args, **_kwargs): return _Noop()
 
-# --- Prometheus metrics -----------------
-_payments_initiate_total = Counter("payments_initiate_total", "Payments initiate calls", labelnames=["result"])
-_payments_status_total = Counter("payments_status_total", "Payments status calls", labelnames=["result"])
-_loans_read_total = Counter("loans_read_total", "Loans read calls", labelnames=["endpoint", "result"])
-_collateral_read_total = Counter("collateral_read_total", "Collateral read calls", labelnames=["endpoint", "result"])
-_latency_hist = Histogram("finastra_pay_loans_latency_seconds", "Latency for payments & loans", buckets=(0.1,0.3,0.5,1,2,5,10))
-_non_2xx_total = Counter("finastra_non_2xx_total", "Non-2xx responses", labelnames=["status_bucket"])
+# --- Prometheus metrics (idempotent registration) -----------------
+class _NoopMetric:
+    def labels(self, *_, **__):
+        return self
+    def inc(self, *_: Any, **__: Any) -> None:
+        return None
+    def observe(self, *_: Any, **__: Any) -> None:
+        return None
+    def collect(self):
+        return []
+
+def _safe_counter(name: str, doc: str, labelnames: tuple[str, ...] | list[str] = ()):
+    try:
+        return Counter(name, doc, labelnames=labelnames)
+    except Exception:  # ValueError on duplicate registration
+        try:
+            from prometheus_client import REGISTRY  # type: ignore
+            names_to_collectors = getattr(REGISTRY, "_names_to_collectors", {})
+            coll = names_to_collectors.get(name)
+            if coll is not None:
+                return coll
+            # Fallback: scan collectors for one that exposes our metric name
+            collectors = getattr(REGISTRY, "_collector_to_names", {})
+            for c, names in getattr(collectors, "items", lambda: [])():
+                if name in names:
+                    return c
+        except Exception:
+            pass
+        # As a final fallback, create an unregistered metric so tests can observe it
+        try:
+            return Counter(name, doc, labelnames=labelnames, registry=None)  # type: ignore
+        except Exception:
+            return _NoopMetric()
+
+def _safe_histogram(name: str, doc: str, *, labelnames: tuple[str, ...] | list[str] = (), buckets=()):
+    try:
+        return Histogram(name, doc, labelnames=labelnames, buckets=buckets)
+    except Exception:
+        try:
+            from prometheus_client import REGISTRY  # type: ignore
+            names_to_collectors = getattr(REGISTRY, "_names_to_collectors", {})
+            coll = names_to_collectors.get(name)
+            if coll is not None:
+                return coll
+        except Exception:
+            pass
+        try:
+            return Histogram(name, doc, labelnames=labelnames, buckets=buckets, registry=None)  # type: ignore
+        except Exception:
+            return _NoopMetric()
+
+_payments_initiate_total = _safe_counter("payments_initiate_total", "Payments initiate calls", labelnames=["result"])
+_payments_status_total = _safe_counter("payments_status_total", "Payments status calls", labelnames=["result"])
+_loans_read_total = _safe_counter("loans_read_total", "Loans read calls", labelnames=["endpoint", "result"])
+_collateral_read_total = _safe_counter("collateral_read_total", "Collateral read calls", labelnames=["endpoint", "result"])
+_latency_hist = _safe_histogram("finastra_pay_loans_latency_seconds", "Latency for payments & loans", buckets=(0.1,0.3,0.5,1,2,5,10))
+_non_2xx_total = _safe_counter("finastra_non_2xx_total", "Non-2xx responses", labelnames=["status_bucket"])
 
 # Generic, product-agnostic API metrics
-_api_calls_total = Counter(
+_api_calls_total = _safe_counter(
     "finastra_api_calls_total",
     "Finastra API calls by endpoint and status",
     labelnames=["endpoint", "status"],
 )
-_api_latency_hist = Histogram(
+_api_latency_hist = _safe_histogram(
     "finastra_api_latency_seconds",
     "Finastra API latency seconds by endpoint",
     labelnames=["endpoint"],
@@ -337,6 +387,12 @@ class FinastraAPIClient:
                     )
                 # Raise for non-2xx; callers handle HTTPError
                 resp.raise_for_status()
+                # Success: record metrics
+                try:
+                    _api_calls_total.labels(endpoint=endpoint_label, status=str(resp.status_code)).inc()
+                    _api_latency_hist.labels(endpoint=endpoint_label).observe(time.perf_counter() - overall_start)
+                except Exception:
+                    pass
                 return resp
             except requests.RequestException as e:  # includes HTTPError/ConnectionError
                 last_exc = e
@@ -382,17 +438,6 @@ class FinastraAPIClient:
 
     def get_json(self, path: str, params: Optional[Dict[str, Any]] = None, **kwargs) -> Dict[str, Any]:
         r = self.request("GET", path, params=params, **kwargs)
-        try:
-            # Record success metric on GET helpers
-            product_override = kwargs.get("product")
-            prod_label = (product_override or self.product).strip("/") if not _use_mock() else "mock"
-            path_label = (path if path.startswith("/") else f"/{path}").split("?", 1)[0]
-            endpoint_label = f"{prod_label}:{path_label}"
-            _api_calls_total.labels(endpoint=endpoint_label, status="200").inc()
-            # Latency already observed in request() on failure; success latency is better measured around request as well,
-            # but we avoid duplicating timers here to keep minimal changes.
-        except Exception:
-            pass
         return r.json()
 
     def post_json(self, path: str, payload: Dict[str, Any], idempotency_key: Optional[str] = None, **kwargs) -> Dict[str, Any]:

@@ -166,11 +166,18 @@ jobs:
         env:
           FEATURE_FINASTRA_COLLATERALS: "1"
           FINASTRA_TOKEN_STRATEGY: client_credentials
+          # Generic names used by list smoke
           FINASTRA_CLIENT_ID: ${{ secrets.FINASTRA_B2B_CLIENT_ID }}
           FINASTRA_CLIENT_SECRET: ${{ secrets.FINASTRA_B2B_CLIENT_SECRET }}
           FINASTRA_BASE_URL: ${{ secrets.FINASTRA_B2B_BASE_URL_COLLATERALS }}
-          FINASTRA_TENANT: sandbox
+          # Preferred token host + tenant (Option B)
+          FINASTRA_AUTH_URL: ${{ secrets.FINASTRA_AUTH_URL }}
+          FINASTRA_TENANT: ${{ secrets.FINASTRA_TENANT }}
           FINASTRA_SCOPE: ${{ secrets.FINASTRA_SCOPE }}
+          # B2B-specific names used by by-id smoke
+          FINASTRA_B2B_CLIENT_ID: ${{ secrets.FINASTRA_B2B_CLIENT_ID }}
+          FINASTRA_B2B_CLIENT_SECRET: ${{ secrets.FINASTRA_B2B_CLIENT_SECRET }}
+          FINASTRA_B2B_BASE_URL_COLLATERALS: ${{ secrets.FINASTRA_B2B_BASE_URL_COLLATERALS }}
           TEST_COLLATERAL_ID_PRIMARY: ${{ secrets.TEST_COLLATERAL_ID_PRIMARY }}
         run: |
           pytest -q tests/test_finastra_client.py -k test_live_list_collaterals_smoke
