@@ -1,5 +1,6 @@
 import os
 import pytest
+import requests
 from bankersbank.finastra import ClientCredentialsTokenProvider, FinastraAPIClient
 
 pytestmark = [pytest.mark.finastra_live]
@@ -56,5 +57,8 @@ def test_live_get_collateral_smoke():
     )
 
     # 404 is acceptable in sandbox; mainly validate call path + auth
-    r = client.request("GET", f"/collaterals/{cid}")
-    assert r.status_code in (200, 404)
+    try:
+        r = client.request("GET", f"/collaterals/{cid}")
+        assert r.status_code in (200, 404)
+    except requests.HTTPError as e:
+        assert e.response is not None and e.response.status_code == 404
