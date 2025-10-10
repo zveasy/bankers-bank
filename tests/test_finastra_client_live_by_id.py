@@ -56,9 +56,17 @@ def test_live_get_collateral_smoke():
         token_provider=token_provider,
     )
 
-    # 404 is acceptable in sandbox; mainly validate call path + auth
+    # 404 is acceptable in sandbox by default; enable strict mode with FINASTRA_REQUIRE_200=1
+    require_200 = os.getenv("FINASTRA_REQUIRE_200", "0").lower() in ("1", "true", "yes")
     try:
         r = client.request("GET", f"/collaterals/{cid}")
-        assert r.status_code in (200, 404)
+        if require_200:
+            assert r.status_code == 200
+        else:
+            assert r.status_code in (200, 404)
     except requests.HTTPError as e:
-        assert e.response is not None and e.response.status_code == 404
+        if require_200:
+            import pytest as _pytest
+            _pytest.fail(f"Expected 200 in strict mode, got {getattr(e.response, 'status_code', 'ERR')}")
+        else:
+            assert e.response is not None and e.response.status_code == 404

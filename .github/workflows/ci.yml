@@ -151,7 +151,7 @@ jobs:
     name: "Finastra Collaterals Live Smoke"
     runs-on: ubuntu-latest
     needs: precheck-collateral-secret
-    if: ${{ needs.precheck-collateral-secret.outputs.has_test_collateral == 'true' }}
+    if: ${{ vars.RUN_FINASTRA_LIVE == '1' && needs.precheck-collateral-secret.outputs.has_test_collateral == 'true' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
