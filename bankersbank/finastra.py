@@ -19,7 +19,7 @@ except Exception:  # pragma: no cover
 # --- Prometheus (optional) ----------------------------------------------------
 # If prometheus_client is not installed in all envs/CI, fall back to no-op.
 try:  # pragma: no cover
-    from prometheus_client import Counter, Histogram
+    from prometheus_client import Counter, Histogram, Gauge
 except Exception:  # pragma: no cover
     class _Noop:
         def labels(self, *_, **__): return self
@@ -27,6 +27,7 @@ except Exception:  # pragma: no cover
         def observe(self, *_: Any, **__: Any) -> None: ...
     def Counter(*_args, **_kwargs): return _Noop()
     def Histogram(*_args, **_kwargs): return _Noop()
+    def Gauge(*_args, **_kwargs): return _Noop()
 
 # --- Prometheus metrics (idempotent registration) -----------------
 class _NoopMetric:
@@ -59,6 +60,23 @@ def _safe_counter(name: str, doc: str, labelnames: tuple[str, ...] | list[str] =
         # As a final fallback, create an unregistered metric so tests can observe it
         try:
             return Counter(name, doc, labelnames=labelnames, registry=None)  # type: ignore
+        except Exception:
+            return _NoopMetric()
+
+def _safe_gauge(name: str, doc: str, labelnames: tuple[str, ...] | list[str] = ()):  # pragma: no cover
+    try:
+        return Gauge(name, doc, labelnames=labelnames)
+    except Exception:
+        try:
+            from prometheus_client import REGISTRY  # type: ignore
+            names_to_collectors = getattr(REGISTRY, "_names_to_collectors", {})
+            coll = names_to_collectors.get(name)
+            if coll is not None:
+                return coll
+        except Exception:
+            pass
+        try:
+            return Gauge(name, doc, labelnames=labelnames, registry=None)  # type: ignore
         except Exception:
             return _NoopMetric()
 
@@ -97,6 +115,13 @@ _api_latency_hist = _safe_histogram(
     "Finastra API latency seconds by endpoint",
     labelnames=["endpoint"],
     buckets=(0.05, 0.1, 0.3, 0.5, 1, 2, 5, 10),
+)
+
+# Circuit breaker state gauge: 0=closed, 1=half, 2=open
+_breaker_state_gauge = _safe_gauge(
+    "finastra_breaker_state",
+    "Circuit breaker state (0=closed, 1=half, 2=open)",
+    labelnames=["client"],
 )
 
 __all__ = [
@@ -315,6 +340,8 @@ class FinastraAPIClient:
         self._cb_fail_count = 0
         self._cb_open_until = 0.0
         self._cb_last_fail = 0.0
+        # Emit initial breaker state
+        self._emit_breaker_state()
 
     # --- headers/url builders -------------------------------------------------
     def _bearer(self) -> str:
@@ -373,6 +400,7 @@ class FinastraAPIClient:
                 else:
                     # Cooldown elapsed: allow a trial request
                     self._cb_state = "half"
+                    self._emit_breaker_state()
 
         last_exc: Exception | None = None
         for i in range(1, attempts + 1):
@@ -414,6 +442,7 @@ class FinastraAPIClient:
                         if self._cb_fail_count >= self._cb_fail_threshold:
                             self._cb_state = "open"
                             self._cb_open_until = time.time() + self._cb_cooldown
+                            self._emit_breaker_state()
                     raise
                 # sleep with jitter
                 backoff = base_ms * (2 ** (i - 1))
@@ -430,11 +459,20 @@ class FinastraAPIClient:
                 if self._cb_enabled:
                     self._cb_fail_count = 0
                     self._cb_state = "closed"
+                    self._emit_breaker_state()
                 return resp
         # should not reach here
         if last_exc:
             raise last_exc
         raise RuntimeError("unexpected_retry_logic_fallthrough")
+
+    def _emit_breaker_state(self) -> None:
+        try:
+            mapping = {"closed": 0, "half": 1, "open": 2}
+            _breaker_state_gauge.labels("collateral").set(mapping.get(self._cb_state, 0))
+        except Exception:
+            # metrics are best-effort
+            pass
 
     def get_json(self, path: str, params: Optional[Dict[str, Any]] = None, **kwargs) -> Dict[str, Any]:
         r = self.request("GET", path, params=params, **kwargs)
