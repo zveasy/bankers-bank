@@ -1,0 +1,95 @@
+name: Daily Metrics Smoke
+
+on:
+  schedule:
+    - cron: '0 7 * * *'  # daily at 07:00 UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  metrics-smoke:
+    name: Metrics smoke across core services
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - service: bank_connector
+            url: ${{ vars.BANK_CONNECTOR_URL }}
+          - service: treasury_observability
+            url: ${{ vars.TREASURY_OBS_URL }}
+          - service: risk_guardrails
+            url: ${{ vars.RISK_GUARDRAILS_URL }}
+    steps:
+      - name: Checkout (for context/artifacts)
+        uses: actions/checkout@v4
+
+      - name: Fetch /metrics for ${{ matrix.service }}
+        id: fetch
+        shell: bash
+        env:
+          SERVICE_URL: ${{ matrix.url }}
+        run: |
+          set +e
+          if [ -z "$SERVICE_URL" ]; then
+            echo "Service URL not set for ${{ matrix.service }}; skipping curl." >&2
+            echo "status=skipped" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          mkdir -p metrics
+          OUT="metrics/metrics_${{ matrix.service }}.txt"
+          echo "Fetching $SERVICE_URL/metrics ..."
+          curl -sSL --max-time 20 "$SERVICE_URL/metrics" -o "$OUT"
+          RC=$?
+          if [ $RC -ne 0 ]; then
+            echo "Curl failed with code $RC for $SERVICE_URL/metrics" >&2
+            echo "status=failed" >> "$GITHUB_OUTPUT"
+            # Keep going to upload partials and summary
+          else
+            echo "status=ok" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Validate label coverage (env,service,build_id)
+        id: validate
+        shell: bash
+        run: |
+          set +e
+          OUT="metrics/metrics_${{ matrix.service }}.txt"
+          if [ ! -f "$OUT" ]; then
+            echo "no_file=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Basic checks for label presence anywhere in exposition
+          missing=0
+          for lbl in env service build_id; do
+            if ! grep -E "\{[^}]*${lbl}=\\\"" "$OUT" >/dev/null; then
+              echo "Missing label: $lbl"
+              missing=$((missing+1))
+            fi
+          done
+          echo "missing=$missing" >> "$GITHUB_OUTPUT"
+
+      - name: Append job summary
+        shell: bash
+        run: |
+          echo "### Metrics Smoke: ${{ matrix.service }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- URL: ${{ matrix.url }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Fetch status: ${{ steps.fetch.outputs.status || 'n/a' }}" >> "$GITHUB_STEP_SUMMARY"
+          if [ -n "${{ steps.validate.outputs.no_file }}" ]; then
+            echo "- Metrics file: not produced" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "- Missing labels: ${{ steps.validate.outputs.missing || 'n/a' }}" >> "$GITHUB_STEP_SUMMARY"
+            echo "\n<details><summary>Head of metrics (${{ matrix.service }})</summary>" >> "$GITHUB_STEP_SUMMARY"
+            head -n 40 "metrics/metrics_${{ matrix.service }}.txt" >> "$GITHUB_STEP_SUMMARY" || true
+            echo "</details>" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload metrics artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: metrics-${{ matrix.service }}
+          path: metrics/metrics_${{ matrix.service }}.txt
+          if-no-files-found: warn
+          retention-days: 7

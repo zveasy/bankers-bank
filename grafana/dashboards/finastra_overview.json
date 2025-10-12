@@ -1,0 +1,95 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 1,
+  "graphTooltip": 0,
+  "iteration": 1,
+  "links": [],
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Error rate (5m)",
+      "id": 1,
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 0 },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "orientation": "auto", "colorMode": "value", "graphMode": "none", "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(finastra_api_calls_total{status!~\"2..\"}[5m])) / ignoring(status) sum(rate(finastra_api_calls_total[5m]))",
+          "legendFormat": "error_rate"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "P95 latency (5m)",
+      "id": 2,
+      "gridPos": { "h": 8, "w": 16, "x": 8, "y": 0 },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le, endpoint) (rate(finastra_api_latency_seconds_bucket[5m])))",
+          "legendFormat": "{{endpoint}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Calls/sec by endpoint and status",
+      "id": 3,
+      "gridPos": { "h": 9, "w": 16, "x": 0, "y": 8 },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (endpoint, status) (rate(finastra_api_calls_total[5m]))",
+          "legendFormat": "{{endpoint}} {{status}}"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Breaker state (max over 5m)",
+      "id": 4,
+      "gridPos": { "h": 9, "w": 8, "x": 16, "y": 8 },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "orientation": "auto", "colorMode": "value", "graphMode": "none", "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max_over_time(finastra_breaker_state{client=\"collateral\"}[5m])",
+          "legendFormat": "breaker_state"
+        }
+      ]
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["finastra", "collaterals"],
+  "templating": { "list": [] },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "",
+  "title": "Finastra Overview",
+  "uid": "fin-overview",
+  "version": 1
+}

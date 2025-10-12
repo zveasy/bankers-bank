@@ -1,0 +1,14 @@
+groups:
+  - name: finastra_recording
+    rules:
+      - record: job:finastra_api_latency_p99:5m
+        expr: histogram_quantile(0.99, sum(rate(finastra_api_latency_seconds_bucket[5m])) by (le))
+      - record: job:finastra_api_error_rate:5m
+        expr: sum(rate(finastra_api_calls_total{status=~"5.."}[5m])) / sum(rate(finastra_api_calls_total[5m]))
+      - alert: FinastraHighErrorRate
+        expr: job:finastra_api_error_rate:5m > 0.02
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Finastra error rate > 2 % over 5 m"

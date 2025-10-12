@@ -55,7 +55,6 @@ curl -s http://localhost:8050/metrics | grep finastra_api_latency_seconds || tru
 - `GET /finastra/b2b/collaterals` — list collaterals (query: `top`, `startingIndex`).
 - `GET /finastra/b2b/collaterals/{collateral_id}` — get by id.
 
-Structured logs include `elapsed_ms`, `tenant`, and `product`. See `asset_aggregator/api.py`.
 
 ## B2C Stubs
 - `GET /finastra/b2c/accounts` — stubbed list (feature-flagged).
@@ -76,6 +75,27 @@ Enable with `FEATURE_FINASTRA_B2C=1`. No live calls are made until the upstream 
 - Runtime metrics smoke:
   ```bash
   python scripts/smoke_finastra_collateral.py --url http://127.0.0.1:8050
+  ```
+
+## Operational Monitoring Setup
+
+- **Import Grafana dashboards** (Grafana → Dashboards → Import):
+  - `infra/grafana/finastra_overview.json`
+  - `infra/grafana/risk_exposure.json`
+  - `infra/grafana/treasury_liquidity.json`
+
+- **Load Prometheus rules**:
+  - Alerts: `prometheus/rules/finastra_alerts.yml`
+  - Recording: `prometheus/rules/finastra_recording.yml`
+  - In Prometheus `prometheus.yml`, include these files under `rule_files:` and reload Prometheus.
+
+- **CI metrics smoke artifacts (7 days retention)**:
+  - GitHub → Actions → `metrics-smoke` workflow → latest run → Artifacts section.
+  - Per-service artifact names: `metrics-bank_connector`, `metrics-treasury_observability`, `metrics-risk_guardrails`.
+
+- **Quick curl check**:
+  ```bash
+  curl -s "$BANK_CONNECTOR_URL/metrics" | grep finastra_request_latency_seconds || true
   ```
 
 ## CI
