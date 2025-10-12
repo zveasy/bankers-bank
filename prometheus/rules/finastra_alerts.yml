@@ -1,0 +1,44 @@
+groups:
+  - name: finastra.rules
+    rules:
+      # Error rate > 10% over 5 minutes
+      - alert: FinastraHighErrorRate
+        expr: |
+          (sum(rate(finastra_api_calls_total{status!~"2.."}[5m]))
+           / ignoring(status) sum(rate(finastra_api_calls_total[5m]))) > 0.10
+        for: 5m
+        labels:
+          severity: warning
+          team: treasury
+        annotations:
+          summary: "Finastra error rate high (>10%)"
+          description: |
+            Error rate is {{ $value | printf "%.2f" }} over the last 5 minutes.
+
+      # Breaker open state sustained (value == 2) for 5 minutes
+      - alert: FinastraBreakerOpen
+        expr: max_over_time(finastra_breaker_state{client="collateral"}[5m]) == 2
+        for: 5m
+        labels:
+          severity: critical
+          team: treasury
+        annotations:
+          summary: "Finastra circuit breaker OPEN"
+          description: |
+            Circuit breaker has been OPEN in the last 5 minutes. Investigate upstream availability.
+
+      # P95 latency above 2s over 5 minutes
+      - alert: FinastraLatencyP95High
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (le, endpoint) (rate(finastra_api_latency_seconds_bucket[5m]))
+          ) > 2
+        for: 10m
+        labels:
+          severity: warning
+          team: treasury
+        annotations:
+          summary: "Finastra P95 latency > 2s"
+          description: |
+            95th percentile latency above 2s for 10 minutes on one or more endpoints.

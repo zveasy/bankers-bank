@@ -1,0 +1,16 @@
+{
+  "title": "Risk Exposure",
+  "templating": {
+    "list": [
+      {"name": "env", "type": "query", "datasource": "Prometheus", "query": "label_values(risk_exposure_ltv, env)", "includeAll": true},
+      {"name": "service", "type": "query", "datasource": "Prometheus", "query": "label_values(risk_exposure_ltv, service)", "includeAll": true}
+    ]
+  },
+  "panels": [
+    {"type": "graph", "title": "LTV", "targets": [{"expr": "avg(risk_exposure_ltv{env=~\"$env\", service=~\"$service\"})"}]},
+    {"type": "graph", "title": "Collateral Ratio", "targets": [{"expr": "avg(collateral_ratio{env=~\"$env\", service=~\"$service\"})"}]},
+    {"type": "graph", "title": "Breaker State", "targets": [{"expr": "max_over_time(finastra_breaker_state{env=~\"$env\", service=~\"$service\"}[5m])"}]}
+  ],
+  "schemaVersion": 36,
+  "version": 1
+}

@@ -1,0 +1,15 @@
+{
+  "title": "Treasury Liquidity",
+  "templating": {
+    "list": [
+      {"name": "env", "type": "query", "datasource": "Prometheus", "query": "label_values(treasury_balance_available, env)", "includeAll": true},
+      {"name": "service", "type": "query", "datasource": "Prometheus", "query": "label_values(treasury_balance_available, service)", "includeAll": true}
+    ]
+  },
+  "panels": [
+    {"type": "graph", "title": "Available Balance", "targets": [{"expr": "sum(treasury_balance_available{env=~\"$env\", service=~\"$service\"})"}]},
+    {"type": "graph", "title": "Payment Outflow Rate", "targets": [{"expr": "sum(rate(payment_outflow_total{env=~\"$env\", service=~\"$service\"}[5m]))"}]}
+  ],
+  "schemaVersion": 36,
+  "version": 1
+}
