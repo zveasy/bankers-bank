@@ -12,6 +12,7 @@ jobs:
   metrics-smoke:
     name: Metrics smoke across core services
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     strategy:
       matrix:
         include:
@@ -21,10 +22,17 @@ jobs:
             url: ${{ vars.TREASURY_OBS_URL }}
           - service: risk_guardrails
             url: ${{ vars.RISK_GUARDRAILS_URL }}
+          # NEW: svc-qbo (QuickBooks connector)
+          - service: svc_qbo
+            url: ${{ vars.SVC_QBO_URL }}
+          # NEW: gateway_api (proxy)
+          - service: gateway_api
+            url: ${{ vars.GATEWAY_API_URL }}
     steps:
       - name: Checkout (for context/artifacts)
         uses: actions/checkout@v4
 
+      # --- Generic /metrics fetch for every service in the matrix ---
       - name: Fetch /metrics for ${{ matrix.service }}
         id: fetch
         shell: bash
@@ -41,12 +49,11 @@ jobs:
           mkdir -p metrics
           OUT="metrics/metrics_${{ matrix.service }}.txt"
           echo "Fetching $SERVICE_URL/metrics ..."
-          curl -sSL --max-time 20 "$SERVICE_URL/metrics" -o "$OUT"
+          curl -sS --retry 2 --retry-delay 2 --max-time 20 "$SERVICE_URL/metrics" -o "$OUT"
           RC=$?
           if [ $RC -ne 0 ]; then
             echo "Curl failed with code $RC for $SERVICE_URL/metrics" >&2
             echo "status=failed" >> "$GITHUB_OUTPUT"
-            # Keep going to upload partials and summary
           else
             echo "status=ok" >> "$GITHUB_OUTPUT"
           fi
@@ -61,7 +68,6 @@ jobs:
             echo "no_file=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          # Basic checks for label presence anywhere in exposition
           missing=0
           for lbl in env service build_id; do
             if ! grep -E "\{[^}]*${lbl}=\\\"" "$OUT" >/dev/null; then
@@ -71,18 +77,110 @@ jobs:
           done
           echo "missing=$missing" >> "$GITHUB_OUTPUT"
 
+      # --- NEW: svc-qbo functional smoke (optional if URL set) ---
+      - name: svc-qbo /healthz
+        if: matrix.service == 'svc_qbo' && matrix.url != ''
+        id: qbo_health
+        shell: bash
+        run: |
+          set -e
+          echo "GET ${{ matrix.url }}/healthz"
+          curl -sS --retry 2 --retry-delay 2 --max-time 20 "${{ matrix.url }}/healthz" | tee metrics/qbo_healthz.json
+
+      - name: svc-qbo sample query (Accounts)
+        if: matrix.service == 'svc_qbo' && matrix.url != ''
+        id: qbo_query
+        shell: bash
+        run: |
+          set -e
+          Q="select * from Account startposition 1 maxresults 5"
+          ENCODED="$(python - <<'PY'
+          import urllib.parse, os
+          print(urllib.parse.quote(os.environ["Q"]))
+          PY
+          )"
+          URL="${{ matrix.url }}/qbo/query?q=${ENCODED}"
+          echo "GET $URL"
+          curl -sS --retry 2 --retry-delay 2 --max-time 25 "$URL" | tee metrics/qbo_query_accounts.json
+
+      # --- NEW: gateway_api functional smoke via proxy endpoints ---
+      - name: gateway_api /healthz
+        if: matrix.service == 'gateway_api' && matrix.url != ''
+        id: gw_health
+        shell: bash
+        run: |
+          set -e
+          echo "GET ${{ matrix.url }}/healthz"
+          curl -sS --retry 2 --retry-delay 2 --max-time 20 "${{ matrix.url }}/healthz" | tee metrics/gateway_healthz.json
+
+      - name: gateway_api companyinfo (proxied)
+        if: matrix.service == 'gateway_api' && matrix.url != ''
+        id: gw_companyinfo
+        shell: bash
+        run: |
+          set -e
+          echo "GET ${{ matrix.url }}/qbo/companyinfo"
+          curl -sS --retry 2 --retry-delay 2 --max-time 25 "${{ matrix.url }}/qbo/companyinfo" | tee metrics/gateway_companyinfo.json
+
+      - name: gateway_api sample query (Accounts)
+        if: matrix.service == 'gateway_api' && matrix.url != ''
+        id: gw_query
+        shell: bash
+        run: |
+          set -e
+          Q="select * from Account startposition 1 maxresults 5"
+          ENCODED="$(python - <<'PY'
+          import urllib.parse, os
+          print(urllib.parse.quote(os.environ["Q"]))
+PY
+          )"
+          URL="${{ matrix.url }}/qbo/query?q=${ENCODED}"
+          echo "GET $URL"
+          curl -sS --retry 2 --retry-delay 2 --max-time 25 "$URL" | tee metrics/gateway_query_accounts.json
+
       - name: Append job summary
         shell: bash
         run: |
           echo "### Metrics Smoke: ${{ matrix.service }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- URL: ${{ matrix.url }}" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Fetch status: ${{ steps.fetch.outputs.status || 'n/a' }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- /metrics fetch: ${{ steps.fetch.outputs.status || 'n/a' }}" >> "$GITHUB_STEP_SUMMARY"
           if [ -n "${{ steps.validate.outputs.no_file }}" ]; then
             echo "- Metrics file: not produced" >> "$GITHUB_STEP_SUMMARY"
           else
             echo "- Missing labels: ${{ steps.validate.outputs.missing || 'n/a' }}" >> "$GITHUB_STEP_SUMMARY"
-            echo "\n<details><summary>Head of metrics (${{ matrix.service }})</summary>" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "<details><summary>Head of metrics (${{ matrix.service }})</summary>" >> "$GITHUB_STEP_SUMMARY"
             head -n 40 "metrics/metrics_${{ matrix.service }}.txt" >> "$GITHUB_STEP_SUMMARY" || true
+            echo "</details>" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ "${{ matrix.service }}" = "svc_qbo" ] && [ -f metrics/qbo_healthz.json ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "<details><summary>svc-qbo /healthz</summary>" >> "$GITHUB_STEP_SUMMARY"
+            sed -e 's/^/    /' metrics/qbo_healthz.json >> "$GITHUB_STEP_SUMMARY"
+            echo "</details>" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ "${{ matrix.service }}" = "svc_qbo" ] && [ -f metrics/qbo_query_accounts.json ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "<details><summary>svc-qbo sample query (Accounts)</summary>" >> "$GITHUB_STEP_SUMMARY"
+            head -n 80 metrics/qbo_query_accounts.json >> "$GITHUB_STEP_SUMMARY" || true
+            echo "</details>" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ "${{ matrix.service }}" = "gateway_api" ] && [ -f metrics/gateway_healthz.json ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "<details><summary>gateway_api /healthz</summary>" >> "$GITHUB_STEP_SUMMARY"
+            sed -e 's/^/    /' metrics/gateway_healthz.json >> "$GITHUB_STEP_SUMMARY"
+            echo "</details>" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ "${{ matrix.service }}" = "gateway_api" ] && [ -f metrics/gateway_companyinfo.json ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "<details><summary>gateway_api companyinfo (proxied)</summary>" >> "$GITHUB_STEP_SUMMARY"
+            head -n 80 metrics/gateway_companyinfo.json >> "$GITHUB_STEP_SUMMARY" || true
+            echo "</details>" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ "${{ matrix.service }}" = "gateway_api" ] && [ -f metrics/gateway_query_accounts.json ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "<details><summary>gateway_api sample query (Accounts)</summary>" >> "$GITHUB_STEP_SUMMARY"
+            head -n 80 metrics/gateway_query_accounts.json >> "$GITHUB_STEP_SUMMARY" || true
             echo "</details>" >> "$GITHUB_STEP_SUMMARY"
           fi
 
@@ -90,6 +188,12 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: metrics-${{ matrix.service }}
-          path: metrics/metrics_${{ matrix.service }}.txt
+          path: |
+            metrics/metrics_${{ matrix.service }}.txt
+            metrics/qbo_healthz.json
+            metrics/qbo_query_accounts.json
+            metrics/gateway_healthz.json
+            metrics/gateway_companyinfo.json
+            metrics/gateway_query_accounts.json
           if-no-files-found: warn
           retention-days: 7

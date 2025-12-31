@@ -79,6 +79,58 @@ start https://localhost:9000/docs  # Asset Aggregator
 docker compose down -v
 ```
 
+### Gateway API (Dockerfile build)
+
+The Gateway API now builds via a dedicated Dockerfile (no runtime pip installs).
+
+```bash
+# build only gateway_api image
+docker compose build gateway_api
+
+# start gateway_api and svc_qbo
+docker compose up -d svc_qbo gateway_api
+
+# healthcheck turns green quickly (short start_period)
+curl -s http://127.0.0.1:8057/healthz
+
+# proxy examples
+curl -s http://127.0.0.1:8057/qbo/companyinfo | jq .
+curl -s "http://127.0.0.1:8057/qbo/query?q=$(python - <<'PY'\nimport urllib.parse\nprint(urllib.parse.quote('select * from Account startposition 1 maxresults 5'))\nPY\n)" | jq .
+```
+
+### QuickBooks OAuth token setup (svc_qbo)
+
+`services/svc_qbo` expects a token file at `secrets/qbo_token.json` and the following envs in `.env.local`:
+
+```bash
+QBO_CLIENT_ID=...           # Intuit app client id
+QBO_CLIENT_SECRET=...       # Intuit app client secret
+QBO_REALM=...               # Company realm id
+QBO_REDIRECT_URI=http://localhost:8000/callback
+```
+
+Token file minimal shape (sandbox example):
+
+```json
+{
+  "access_token": "...",
+  "refresh_token": "..."
+}
+```
+
+The service will auto-refresh tokens on 401 and update `secrets/qbo_token.json`.
+
+### CI healthchecks and daily metrics smoke
+
+- GitHub Actions workflow `metrics-smoke.yml` runs daily and can be triggered manually.
+- Set repository Variables with publicly reachable URLs for these services:
+  - `BANK_CONNECTOR_URL`, `TREASURY_OBS_URL`, `RISK_GUARDRAILS_URL`, `SVC_QBO_URL`, `GATEWAY_API_URL`
+- The workflow fetches `/metrics` for each configured service and, for QBO/gateway, hits:
+  - `GET /healthz`
+  - `GET /qbo/companyinfo`
+  - `GET /qbo/query?q=select * from Account ...`
+- Artifacts (7-day retention) include raw metrics and JSON responses; a summary is appended to the run page.
+
 ### Grafana dashboards
 
 Grafana runs with authentication enabled and is only bound to `localhost` to
