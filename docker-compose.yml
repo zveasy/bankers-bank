@@ -26,18 +26,18 @@ services:
     # Pin Redpanda to a specific version to avoid unexpected upgrades
     image: redpandadata/redpanda:v23.3.2
     command: >
-      redpanda start \
-        --overprovisioned \
-        --smp 1 \
-        --memory 1G \
-        --reserve-memory 0M \
-        --node-id 0 \
-        --check=false \
-        --kafka-addr PLAINTEXT://0.0.0.0:9092,OUTSIDE://0.0.0.0:29092 \
+      redpanda start
+        --overprovisioned
+        --smp 1
+        --memory 1G
+        --reserve-memory 0M
+        --node-id 0
+        --check=false
+        --kafka-addr PLAINTEXT://0.0.0.0:9092,OUTSIDE://0.0.0.0:29092
         --advertise-kafka-addr PLAINTEXT://redpanda:9092,OUTSIDE://localhost:29092
     ports:
-      - "9092:9092"   # in-Docker clients use redpanda:9092
-      - "29092:29092"  # host clients use localhost:29092
+      - "9092:9092"     # in-Docker clients use redpanda:9092
+      - "29092:29092"   # host clients use localhost:29092
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:9644/v1/status/ready || exit 1"]
       interval: 10s
@@ -47,8 +47,7 @@ services:
     restart: unless-stopped
     networks:
       default:
-        aliases:
-          - redpanda
+        aliases: [redpanda]
 
   redis:
     image: redis:7
@@ -56,16 +55,16 @@ services:
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
-      timeout: 3s
+      timeout: 5s
       retries: 20
       start_period: 5s
     restart: unless-stopped
+
   # Mock external bank (for /sweep-order)
   # ────────────────────────────────
   mock_bank:
     image: mccutchen/go-httpbin:v2.10.0   # lightweight httpbin, pinned
-    expose:
-      - "8080"
+    expose: ["8080"]
     restart: unless-stopped
 
   # ────────────────────────────────
@@ -203,6 +202,60 @@ services:
     restart: unless-stopped
     networks:
       default:
+
+  # ────────────────────────────────
+  # New: svc-qbo (QuickBooks connector)
+  # ────────────────────────────────
+  svc_qbo:
+    image: python:3.11-slim
+    container_name: bankers-bank-svc-qbo
+    working_dir: /app
+    env_file:
+      - .env.local
+    environment:
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - ./:/app:rw
+      - ./secrets:/app/secrets:rw
+    command: >
+      sh -c "apt-get update && apt-get install -y --no-install-recommends ca-certificates &&
+             pip install --no-cache-dir fastapi uvicorn requests python-dotenv prometheus-client &&
+             uvicorn services.svc_qbo.api:app --host 0.0.0.0 --port 8055"
+    # NOTE: no 'ports:' section; this service is internal-only (reachable by gateway via Docker network)
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - python -c "import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://127.0.0.1:8055/healthz', timeout=10).getcode()==200 else sys.exit(1)"
+      interval: 20s
+      timeout: 10s
+      retries: 10
+      start_period: 90s
+
+  gateway_api:
+    build:
+      context: .
+      dockerfile: services/gateway_api/Dockerfile
+    container_name: bankers-bank-gateway-api
+    depends_on:
+      svc_qbo:
+        condition: service_healthy
+    env_file:
+      - .env.local
+    environment:
+      PYTHONUNBUFFERED: "1"
+      SVC_QBO_URL: http://svc_qbo:8055
+      GATEWAY_PORT: "8057"
+    ports:
+      - "127.0.0.1:8057:8057"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - python -c "import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://127.0.0.1:8057/healthz',timeout=7).getcode()==200 else sys.exit(1)"
+      interval: 15s
+      timeout: 7s
+      retries: 10
+      start_period: 30s
+
 
   # ────────────────────────────────
   # Observability
