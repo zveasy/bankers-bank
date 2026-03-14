@@ -51,6 +51,11 @@ Core, product-agnostic series (exported from `bankersbank/finastra.py`):
 Circuit breaker gauge:
 - `finastra_breaker_state{client}` where `client="collateral"` and values are `0=closed`, `1=half`, `2=open`.
 
+B2C context-failure metrics:
+- `finastra_b2c_context_errors_total{endpoint,tenant,context,status}`
+- `finastra_b2c_all_contexts_failed_total{endpoint,tenant,status}`
+- `finastra_b2c_last_context_error_unixtime{endpoint,tenant}`
+
 Example checks:
 ```bash
 # verify metrics show up

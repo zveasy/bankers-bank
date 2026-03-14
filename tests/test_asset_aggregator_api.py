@@ -247,6 +247,9 @@ def test_b2c_accounts_partial_context_failure_returns_success(client_api, monkey
     body = resp.json()
     assert len(body["items"]) == 1
     assert body["meta"]["context_errors"][0]["context"] == "BAD"
+    metrics = client.get("/metrics")
+    assert metrics.status_code == 200
+    assert "finastra_b2c_context_errors_total" in metrics.text
 
 
 def test_b2c_accounts_all_contexts_fail_returns_error(client_api, monkeypatch: pytest.MonkeyPatch):

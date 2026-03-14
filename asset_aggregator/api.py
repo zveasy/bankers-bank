@@ -17,11 +17,11 @@ import asyncio
 import httpx
 from fastapi import Depends, FastAPI, HTTPException, Query, Path
 from common.auth import require_token
-from prometheus_client import make_asgi_app
+from prometheus_client import Counter, Gauge, make_asgi_app
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
-from treasury_observability.metrics import snapshot_latency_seconds
+from treasury_observability.metrics import get_metric, snapshot_latency_seconds
 
 from .db import AssetSnapshot, engine, init_db
 from .service import KAFKA_BOOTSTRAP, reconcile_snapshot, run_snapshot_once
@@ -45,6 +45,27 @@ app = FastAPI()
 init_db()
 
 app.mount("/metrics", make_asgi_app())
+
+finastra_b2c_context_errors_total = get_metric(
+    Counter,
+    "finastra_b2c_context_errors_total",
+    "Count of B2C account-context failures by endpoint, tenant, context, and status",
+    ["endpoint", "tenant", "context", "status"],
+)
+
+finastra_b2c_all_contexts_failed_total = get_metric(
+    Counter,
+    "finastra_b2c_all_contexts_failed_total",
+    "Count of B2C requests where all requested contexts failed",
+    ["endpoint", "tenant", "status"],
+)
+
+finastra_b2c_last_context_error_unixtime = get_metric(
+    Gauge,
+    "finastra_b2c_last_context_error_unixtime",
+    "Unix timestamp of the most recent B2C context-level failure",
+    ["endpoint", "tenant"],
+)
 
 #
 # Read model to avoid FastAPI/Pydantic recursion with table=True models
@@ -606,16 +627,32 @@ async def list_finastra_accounts(
                     async for page in client.list_accounts(ctx, limit=limit):
                         items.extend(acc.raw for acc in page)
                 except httpx.HTTPStatusError as e:
+                    status_code = e.response.status_code if e.response is not None else 502
+                    finastra_b2c_context_errors_total.labels(
+                        endpoint="/finastra/b2c/accounts",
+                        tenant=cfg.tenant,
+                        context=ctx,
+                        status=str(status_code),
+                    ).inc()
+                    finastra_b2c_last_context_error_unixtime.labels(
+                        endpoint="/finastra/b2c/accounts",
+                        tenant=cfg.tenant,
+                    ).set_to_current_time()
                     context_errors.append(
                         {
                             "context": ctx,
-                            "status": e.response.status_code if e.response is not None else 502,
+                            "status": status_code,
                             "detail": e.response.text if e.response is not None else str(e),
                         }
                     )
                     continue
         if not items and context_errors:
             first = context_errors[0]
+            finastra_b2c_all_contexts_failed_total.labels(
+                endpoint="/finastra/b2c/accounts",
+                tenant=cfg.tenant,
+                status=str(first["status"]),
+            ).inc()
             raise HTTPException(
                 status_code=first["status"],
                 detail={"error": "all_contexts_failed", "context_errors": context_errors},
@@ -695,10 +732,21 @@ async def list_finastra_balances(
                                 acc.external_id for acc in page if acc.external_id
                             )
                     except httpx.HTTPStatusError as e:
+                        status_code = e.response.status_code if e.response is not None else 502
+                        finastra_b2c_context_errors_total.labels(
+                            endpoint="/finastra/b2c/balances",
+                            tenant=cfg.tenant,
+                            context=ctx,
+                            status=str(status_code),
+                        ).inc()
+                        finastra_b2c_last_context_error_unixtime.labels(
+                            endpoint="/finastra/b2c/balances",
+                            tenant=cfg.tenant,
+                        ).set_to_current_time()
                         context_errors.append(
                             {
                                 "context": ctx,
-                                "status": e.response.status_code if e.response is not None else 502,
+                                "status": status_code,
                                 "detail": e.response.text if e.response is not None else str(e),
                             }
                         )
@@ -707,6 +755,11 @@ async def list_finastra_balances(
             use_account_ids = list(dict.fromkeys(use_account_ids))
             if not use_account_ids and context_errors:
                 first = context_errors[0]
+                finastra_b2c_all_contexts_failed_total.labels(
+                    endpoint="/finastra/b2c/balances",
+                    tenant=cfg.tenant,
+                    status=str(first["status"]),
+                ).inc()
                 raise HTTPException(
                     status_code=first["status"],
                     detail={"error": "all_contexts_failed", "context_errors": context_errors},

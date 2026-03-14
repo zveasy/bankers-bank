@@ -5,6 +5,10 @@ groups:
         expr: histogram_quantile(0.99, sum(rate(finastra_api_latency_seconds_bucket[5m])) by (le))
       - record: job:finastra_api_error_rate:5m
         expr: sum(rate(finastra_api_calls_total{status=~"5.."}[5m])) / sum(rate(finastra_api_calls_total[5m]))
+      - record: job:finastra_b2c_context_failures:5m
+        expr: sum by (endpoint, tenant) (increase(finastra_b2c_context_errors_total[5m]))
+      - record: job:finastra_b2c_all_contexts_failed:10m
+        expr: sum by (endpoint, tenant) (increase(finastra_b2c_all_contexts_failed_total[10m]))
       - alert: FinastraHighErrorRate
         expr: job:finastra_api_error_rate:5m > 0.02
         for: 5m

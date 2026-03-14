@@ -42,3 +42,28 @@ groups:
           summary: "Finastra P95 latency > 2s"
           description: |
             95th percentile latency above 2s for 10 minutes on one or more endpoints.
+
+      # Context-level B2C failures indicate tenant/context configuration drift or upstream product issues.
+      - alert: FinastraB2CContextFailuresHigh
+        expr: |
+          sum by (endpoint, tenant) (increase(finastra_b2c_context_errors_total[5m])) >= 5
+        for: 5m
+        labels:
+          severity: warning
+          team: treasury
+        annotations:
+          summary: "Finastra B2C context failures are elevated"
+          description: |
+            B2C context failures are high for {{ $labels.tenant }} {{ $labels.endpoint }} in the last 5m.
+
+      - alert: FinastraB2CAllContextsFailed
+        expr: |
+          sum by (endpoint, tenant) (increase(finastra_b2c_all_contexts_failed_total[10m])) >= 1
+        for: 0m
+        labels:
+          severity: critical
+          team: treasury
+        annotations:
+          summary: "Finastra B2C all-contexts-failed condition detected"
+          description: |
+            All requested B2C contexts failed for {{ $labels.tenant }} {{ $labels.endpoint }} at least once in the last 10m.
