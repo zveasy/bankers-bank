@@ -29,11 +29,11 @@ def upgrade() -> None:
     existing_indexes = {i.get("name") for i in inspector.get_indexes("assetsnapshot")}
 
     if "assetsnapshot_bank_ts_uniq" not in existing_uniques and "assetsnapshot_bank_ts_uniq" not in existing_indexes:
-        op.create_unique_constraint(
-            "assetsnapshot_bank_ts_uniq",
-            "assetsnapshot",
-            ["bank_id", "ts"],
-        )
+        with op.batch_alter_table("assetsnapshot") as batch_op:
+            batch_op.create_unique_constraint(
+                "assetsnapshot_bank_ts_uniq",
+                ["bank_id", "ts"],
+            )
 
 
 def downgrade() -> None:
@@ -45,4 +45,5 @@ def downgrade() -> None:
 
     existing_uniques = {u.get("name") for u in inspector.get_unique_constraints("assetsnapshot")}
     if "assetsnapshot_bank_ts_uniq" in existing_uniques:
-        op.drop_constraint("assetsnapshot_bank_ts_uniq", "assetsnapshot", type_="unique")
+        with op.batch_alter_table("assetsnapshot") as batch_op:
+            batch_op.drop_constraint("assetsnapshot_bank_ts_uniq", type_="unique")

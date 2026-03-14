@@ -21,12 +21,14 @@ def _db_url() -> str:
 
 
 def run_migrations_offline() -> None:
+    url = _db_url()
     context.configure(
-        url=_db_url(),
+        url=url,
         target_metadata=target_metadata,
         literal_binds=True,
         compare_type=True,
         compare_server_default=True,
+        render_as_batch=url.startswith("sqlite"),
     )
 
     with context.begin_transaction():
@@ -48,6 +50,7 @@ def run_migrations_online() -> None:
             target_metadata=target_metadata,
             compare_type=True,
             compare_server_default=True,
+            render_as_batch=connection.dialect.name == "sqlite",
         )
 
         with context.begin_transaction():
