@@ -1,6 +1,8 @@
 """FastAPI endpoints for the Asset Aggregator."""
 from __future__ import annotations
 import os
+import re
+import json
 from common.logging import configure_logging
 configure_logging(os.getenv("LOG_FORMAT", "json"), service_name="asset_aggregator")
 
@@ -8,9 +10,11 @@ import socket
 import time
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import List, Optional
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional
 import asyncio
 
+import httpx
 from fastapi import Depends, FastAPI, HTTPException, Query, Path
 from common.auth import require_token
 from prometheus_client import make_asgi_app
@@ -27,6 +31,7 @@ from asset_aggregator.syncers.finastra_accounts import FinastraAccountsSyncer
 from asset_aggregator.syncers.finastra_balances import FinastraBalancesSyncer
 from integrations.finastra.accounts_client import AccountsClient
 from integrations.finastra.balances_client import BalancesClient
+from integrations.finastra.http import FinastraHTTP
 from asset_aggregator.syncers.finastra_transactions import FinastraTransactionsSyncer
 from integrations.finastra.account_info_us_client import AccountInfoUSClient
 from bankersbank.finastra import (
@@ -180,33 +185,196 @@ async def run_collateral_sync(_: None = Depends(require_token)):
 # --------------------------------------------------------------------------------------
 
 
-def _fin_client() -> FinastraAPIClient:
+@dataclass
+class _TenantOAuthConfig:
+    tenant: str
+    base_url: str
+    client_id: str | None
+    client_secret: str | None
+    scope: str
+    token_url: str | None
+
+
+class _AsyncTokenProviderAdapter:
+    def __init__(self, provider: ClientCredentialsTokenProvider):
+        self._provider = provider
+
+    async def token(self) -> str:
+        return self._provider.fetch()
+
+    async def refresh(self) -> str:
+        return self._provider.fetch()
+
+
+def _tenant_env_key(tenant: str) -> str:
+    key = re.sub(r"[^A-Za-z0-9]+", "_", tenant or "").strip("_").upper()
+    return key or "DEFAULT"
+
+
+def _load_tenant_config_map() -> Dict[str, Dict[str, Any]]:
+    raw = os.getenv("FINASTRA_TENANT_CONFIG_JSON", "").strip()
+    path = os.getenv("FINASTRA_TENANT_CONFIG_PATH", "").strip()
+
+    payload = raw
+    if not payload and path:
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                payload = fh.read()
+        except OSError:
+            return {}
+
+    if not payload:
+        return {}
+    try:
+        data = json.loads(payload)
+    except json.JSONDecodeError:
+        logging.getLogger(__name__).warning("invalid_finastra_tenant_config_json")
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _first_env(tenant_key: str, names: tuple[str, ...]) -> str | None:
+    for name in names:
+        val = os.getenv(f"{name}__{tenant_key}")
+        if val:
+            return val
+    for name in names:
+        val = os.getenv(name)
+        if val:
+            return val
+    return None
+
+
+def _resolve_tenant_oauth_config(
+    tenant_override: str | None = None,
+    *,
+    scope_default: str = "accounts",
+    client_id_vars: tuple[str, ...] = ("FINASTRA_CLIENT_ID",),
+    client_secret_vars: tuple[str, ...] = ("FINASTRA_CLIENT_SECRET",),
+    base_url_vars: tuple[str, ...] = ("FINASTRA_BASE_URL",),
+    scope_vars: tuple[str, ...] = ("FINASTRA_SCOPE",),
+    token_url_vars: tuple[str, ...] = ("FINASTRA_TOKEN_URL",),
+) -> _TenantOAuthConfig:
+    tenant = (tenant_override or os.getenv("FINASTRA_TENANT", FINASTRA_TENANT)).strip() or FINASTRA_TENANT
+    tenant_key = _tenant_env_key(tenant)
+    cfg_map = _load_tenant_config_map()
+    cfg = cfg_map.get(tenant, {}) if isinstance(cfg_map, dict) else {}
+    if not isinstance(cfg, dict):
+        cfg = {}
+
+    def _cfg_first(*keys: str) -> str | None:
+        for k in keys:
+            v = cfg.get(k)
+            if isinstance(v, str) and v.strip():
+                return v.strip()
+        return None
+
+    base_url = (
+        _cfg_first("base_url", "baseUrl")
+        or _first_env(tenant_key, base_url_vars)
+        or FINASTRA_BASE_URL
+    )
+    client_id = _cfg_first("client_id", "clientId") or _first_env(tenant_key, client_id_vars)
+    client_secret = _cfg_first("client_secret", "clientSecret") or _first_env(tenant_key, client_secret_vars)
+    scope = (
+        _cfg_first("scope")
+        or _first_env(tenant_key, scope_vars)
+        or scope_default
+    )
+    token_url = _cfg_first("token_url", "tokenUrl") or _first_env(tenant_key, token_url_vars)
+
+    return _TenantOAuthConfig(
+        tenant=tenant,
+        base_url=base_url.rstrip("/"),
+        client_id=client_id,
+        client_secret=client_secret,
+        scope=scope,
+        token_url=token_url,
+    )
+
+
+def _build_client_credentials_provider(cfg: _TenantOAuthConfig) -> ClientCredentialsTokenProvider:
+    if not cfg.client_id or not cfg.client_secret:
+        raise HTTPException(
+            status_code=500,
+            detail=f"missing_finastra_credentials_for_tenant:{cfg.tenant}",
+        )
+    if cfg.token_url:
+        return ClientCredentialsTokenProvider(
+            token_url=cfg.token_url,
+            client_id=cfg.client_id,
+            client_secret=cfg.client_secret,
+            scope=cfg.scope,
+            verify=os.getenv("CA_CERT", True),
+        )
+    return ClientCredentialsTokenProvider(
+        base_url=cfg.base_url,
+        tenant=cfg.tenant,
+        client_id=cfg.client_id,
+        client_secret=cfg.client_secret,
+        scope=cfg.scope,
+        verify=os.getenv("CA_CERT", True),
+    )
+
+
+def _build_accounts_client(cfg: _TenantOAuthConfig) -> AccountsClient:
+    provider = _build_client_credentials_provider(cfg)
+    http = FinastraHTTP(
+        base_url=cfg.base_url,
+        token_provider=_AsyncTokenProviderAdapter(provider),
+        product="accounts",
+    )
+    return AccountsClient(http=http)
+
+
+def _build_balances_client(cfg: _TenantOAuthConfig) -> BalancesClient:
+    provider = _build_client_credentials_provider(cfg)
+    http = FinastraHTTP(
+        base_url=cfg.base_url,
+        token_provider=_AsyncTokenProviderAdapter(provider),
+        product="balances",
+    )
+    return BalancesClient(http=http)
+
+
+def _b2c_contexts() -> list[str]:
+    raw = os.getenv("FINASTRA_B2C_ACCOUNT_CONTEXTS", "MT103,INTERNAL-TRANSFER")
+    return [s.strip() for s in raw.split(",") if s.strip()]
+
+
+def _fin_client(tenant_override: str | None = None) -> FinastraAPIClient:
     """Builds a FinastraAPIClient using env configuration.
 
     Expects FINASTRA_CLIENT_ID/FINASTRA_CLIENT_SECRET to be present in env
     (see docs/runbooks/finastra.md). Uses default scope "accounts".
     """
     strategy = os.getenv("FINASTRA_TOKEN_STRATEGY", "client_credentials").lower()
-    static_bearer = os.getenv("FINASTRA_STATIC_BEARER")
+    cfg = _resolve_tenant_oauth_config(
+        tenant_override=tenant_override,
+        scope_default="accounts",
+        client_id_vars=("FINASTRA_B2B_CLIENT_ID", "FINASTRA_CLIENT_ID"),
+        client_secret_vars=("FINASTRA_B2B_CLIENT_SECRET", "FINASTRA_CLIENT_SECRET"),
+        base_url_vars=("FINASTRA_B2B_BASE_URL_COLLATERALS", "FINASTRA_BASE_URL"),
+        scope_vars=("FINASTRA_B2B_SCOPE", "FINASTRA_SCOPE"),
+        token_url_vars=("FINASTRA_B2B_TOKEN_URL", "FINASTRA_TOKEN_URL"),
+    )
+    static_bearer = os.getenv(f"FINASTRA_STATIC_BEARER__{_tenant_env_key(cfg.tenant)}") or os.getenv("FINASTRA_STATIC_BEARER")
 
     # Prefer static bearer when explicitly configured
     if strategy == "static" and static_bearer and static_bearer != "disabled":
         return FinastraAPIClient(
-            base_url=FINASTRA_BASE_URL,
-            tenant=FINASTRA_TENANT,
+            base_url=cfg.base_url,
+            tenant=cfg.tenant,
             token=static_bearer,
         )
 
     # Fall back to client-credentials
-    provider = ClientCredentialsTokenProvider(
-        base_url=FINASTRA_BASE_URL,
-        tenant=FINASTRA_TENANT,
-        client_id=os.environ.get("FINASTRA_CLIENT_ID"),
-        client_secret=os.environ.get("FINASTRA_CLIENT_SECRET"),
-        scope=os.getenv("FINASTRA_SCOPE", "accounts"),
-        verify=os.getenv("CA_CERT", True),
+    provider = _build_client_credentials_provider(cfg)
+    return FinastraAPIClient(
+        base_url=cfg.base_url,
+        tenant=cfg.tenant,
+        token_provider=provider,
     )
-    return FinastraAPIClient(token_provider=provider)
 
 
 def _feature_enabled() -> bool:
@@ -230,6 +398,10 @@ def list_finastra_collaterals(
         ge=0,
         description="Zero-based index to start listing from",
     ),
+    tenant: str | None = Query(
+        None,
+        description="Optional Finastra tenant override for multi-tenant routing",
+    ),
     _: None = Depends(require_token),
 ):
     """Proxy to Finastra Collaterals list endpoint with simple pagination.
@@ -240,8 +412,10 @@ def list_finastra_collaterals(
     if not _feature_enabled():
         raise HTTPException(status_code=404, detail="feature_disabled")
     t0 = time.perf_counter()
+    resolved_tenant = tenant or FINASTRA_TENANT
     try:
-        client = _fin_client()
+        client = _fin_client(tenant)
+        resolved_tenant = client.tenant
         data = client.list_collaterals(startingIndex=startingIndex, pageSize=top)
         # structured success log
         logging.getLogger(__name__).info(
@@ -250,7 +424,7 @@ def list_finastra_collaterals(
                 "endpoint": "/finastra/b2b/collaterals",
                 "status": 200,
                 "elapsed_ms": int((time.perf_counter() - t0) * 1000),
-                "tenant": FINASTRA_TENANT,
+                "tenant": resolved_tenant,
                 "product": os.getenv("FINASTRA_PRODUCT_COLLATERAL", "total-lending/collaterals/b2b/v2"),
             },
         )
@@ -286,7 +460,7 @@ def list_finastra_collaterals(
                 "endpoint": "/finastra/b2b/collaterals",
                 "status": status,
                 "elapsed_ms": int((time.perf_counter() - t0) * 1000),
-                "tenant": FINASTRA_TENANT,
+                "tenant": resolved_tenant,
                 "product": os.getenv("FINASTRA_PRODUCT_COLLATERAL", "total-lending/collaterals/b2b/v2"),
             },
         )
@@ -302,6 +476,10 @@ def get_finastra_collateral(
     collateral_id: str = Path(
         ..., description="Primary key of the collateral resource in Finastra"
     ),
+    tenant: str | None = Query(
+        None,
+        description="Optional Finastra tenant override for multi-tenant routing",
+    ),
     _: None = Depends(require_token),
 ):
     """Proxy to Finastra Collaterals get by ID endpoint.
@@ -312,8 +490,10 @@ def get_finastra_collateral(
     if not _feature_enabled():
         raise HTTPException(status_code=404, detail="feature_disabled")
     t0 = time.perf_counter()
+    resolved_tenant = tenant or FINASTRA_TENANT
     try:
-        client = _fin_client()
+        client = _fin_client(tenant)
+        resolved_tenant = client.tenant
         data = client.get_collateral(collateral_id)
         logging.getLogger(__name__).info(
             "fin_collateral_success",
@@ -321,7 +501,7 @@ def get_finastra_collateral(
                 "endpoint": f"/finastra/b2b/collaterals/{collateral_id}",
                 "status": 200,
                 "elapsed_ms": int((time.perf_counter() - t0) * 1000),
-                "tenant": FINASTRA_TENANT,
+                "tenant": resolved_tenant,
                 "product": os.getenv("FINASTRA_PRODUCT_COLLATERAL", "total-lending/collaterals/b2b/v2"),
             },
         )
@@ -356,7 +536,7 @@ def get_finastra_collateral(
                 "endpoint": f"/finastra/b2b/collaterals/{collateral_id}",
                 "status": status,
                 "elapsed_ms": int((time.perf_counter() - t0) * 1000),
-                "tenant": FINASTRA_TENANT,
+                "tenant": resolved_tenant,
                 "product": os.getenv("FINASTRA_PRODUCT_COLLATERAL", "total-lending/collaterals/b2b/v2"),
             },
         )
@@ -375,44 +555,139 @@ def _b2c_enabled() -> bool:
 @app.get(
     "/finastra/b2c/accounts",
     tags=["finastra"],
-    summary="[Stub] List consumer accounts (B2C)",
+    summary="List consumer accounts (B2C)",
 )
-def list_finastra_accounts_stub(_: None = Depends(require_token)):
+async def list_finastra_accounts(
+    contexts: list[str] | None = Query(
+        None,
+        description="Optional repeated query param, e.g. ?contexts=MT103&contexts=INTERNAL-TRANSFER",
+    ),
+    limit: int = Query(50, ge=1, le=100),
+    tenant: str | None = Query(
+        None,
+        description="Optional Finastra tenant override for multi-tenant routing",
+    ),
+    _: None = Depends(require_token),
+):
     if not _b2c_enabled():
         raise HTTPException(status_code=404, detail="feature_disabled")
     t0 = time.perf_counter()
-    # Mocked response for preparation; no live Finastra call yet
-    data = {"items": [{"id": "ACC123", "type": "DDA"}]}
-    logging.getLogger(__name__).info(
-        "fin_b2c_accounts_stub",
-        extra={
-            "endpoint": "/finastra/b2c/accounts",
-            "status": 200,
-            "elapsed_ms": int((time.perf_counter() - t0) * 1000),
-        },
+    cfg = _resolve_tenant_oauth_config(
+        tenant_override=tenant,
+        scope_default="accounts",
+        client_id_vars=("FINASTRA_B2C_CLIENT_ID", "FINASTRA_CLIENT_ID"),
+        client_secret_vars=("FINASTRA_B2C_CLIENT_SECRET", "FINASTRA_CLIENT_SECRET"),
+        base_url_vars=("FINASTRA_B2C_BASE_URL", "FINASTRA_BASE_URL"),
+        scope_vars=("FINASTRA_B2C_SCOPE", "FINASTRA_SCOPE"),
+        token_url_vars=("FINASTRA_B2C_TOKEN_URL", "FINASTRA_TOKEN_URL"),
     )
-    return data
+    use_contexts = contexts or _b2c_contexts()
+    try:
+        items: list[dict] = []
+        async with _build_accounts_client(cfg) as client:
+            for ctx in use_contexts:
+                async for page in client.list_accounts(ctx, limit=limit):
+                    items.extend(acc.raw for acc in page)
+        data = {"items": items, "meta": {"tenant": cfg.tenant, "contexts": use_contexts}}
+        logging.getLogger(__name__).info(
+            "fin_b2c_accounts_success",
+            extra={
+                "endpoint": "/finastra/b2c/accounts",
+                "status": 200,
+                "elapsed_ms": int((time.perf_counter() - t0) * 1000),
+                "tenant": cfg.tenant,
+            },
+        )
+        return data
+    except httpx.HTTPStatusError as e:
+        status = e.response.status_code if e.response is not None else 502
+        detail = e.response.text if e.response is not None else str(e)
+        raise HTTPException(status_code=status, detail=detail)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
 
 
 @app.get(
     "/finastra/b2c/balances",
     tags=["finastra"],
-    summary="[Stub] List consumer balances (B2C)",
+    summary="List consumer balances (B2C)",
 )
-def list_finastra_balances_stub(_: None = Depends(require_token)):
+async def list_finastra_balances(
+    accountId: list[str] | None = Query(
+        None,
+        description="Optional repeated query param, e.g. ?accountId=acc-1&accountId=acc-2",
+    ),
+    contexts: list[str] | None = Query(
+        None,
+        description="Used only when accountId is omitted; fetches account IDs from these contexts",
+    ),
+    limit: int = Query(50, ge=1, le=100),
+    tenant: str | None = Query(
+        None,
+        description="Optional Finastra tenant override for multi-tenant routing",
+    ),
+    _: None = Depends(require_token),
+):
     if not _b2c_enabled():
         raise HTTPException(status_code=404, detail="feature_disabled")
     t0 = time.perf_counter()
-    data = {"items": [{"accountId": "ACC123", "booked": {"amount": 100.0, "currency": "USD"}}]}
-    logging.getLogger(__name__).info(
-        "fin_b2c_balances_stub",
-        extra={
-            "endpoint": "/finastra/b2c/balances",
-            "status": 200,
-            "elapsed_ms": int((time.perf_counter() - t0) * 1000),
-        },
+    cfg = _resolve_tenant_oauth_config(
+        tenant_override=tenant,
+        scope_default="accounts",
+        client_id_vars=("FINASTRA_B2C_CLIENT_ID", "FINASTRA_CLIENT_ID"),
+        client_secret_vars=("FINASTRA_B2C_CLIENT_SECRET", "FINASTRA_CLIENT_SECRET"),
+        base_url_vars=("FINASTRA_B2C_BASE_URL", "FINASTRA_BASE_URL"),
+        scope_vars=("FINASTRA_B2C_SCOPE", "FINASTRA_SCOPE"),
+        token_url_vars=("FINASTRA_B2C_TOKEN_URL", "FINASTRA_TOKEN_URL"),
     )
-    return data
+    use_account_ids = list(accountId or [])
+    use_contexts = contexts or _b2c_contexts()
+    try:
+        if not use_account_ids:
+            async with _build_accounts_client(cfg) as account_client:
+                for ctx in use_contexts:
+                    async for page in account_client.list_accounts(ctx, limit=limit):
+                        use_account_ids.extend(
+                            acc.external_id for acc in page if acc.external_id
+                        )
+            # de-duplicate while preserving order
+            use_account_ids = list(dict.fromkeys(use_account_ids))
+
+        items: list[dict] = []
+        if use_account_ids:
+            async with _build_balances_client(cfg) as balance_client:
+                async for balance_page in balance_client.list_all_balances(use_account_ids):
+                    items.extend(dict(b) for b in balance_page)
+
+        data = {
+            "items": items,
+            "meta": {
+                "tenant": cfg.tenant,
+                "accountIds": use_account_ids,
+                "contexts": use_contexts,
+            },
+        }
+        logging.getLogger(__name__).info(
+            "fin_b2c_balances_success",
+            extra={
+                "endpoint": "/finastra/b2c/balances",
+                "status": 200,
+                "elapsed_ms": int((time.perf_counter() - t0) * 1000),
+                "tenant": cfg.tenant,
+                "accounts_count": len(use_account_ids),
+            },
+        )
+        return data
+    except httpx.HTTPStatusError as e:
+        status = e.response.status_code if e.response is not None else 502
+        detail = e.response.text if e.response is not None else str(e)
+        raise HTTPException(status_code=status, detail=detail)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
 
 
 # --------------------------------------------------------------------------------------

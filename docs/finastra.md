@@ -1,8 +1,8 @@
-# Finastra Integration (B2B Collaterals / B2C Stubs)
+# Finastra Integration (B2B Collaterals / B2C Accounts & Balances)
 
 ## Overview
 - **B2B (Collaterals)**: Live integration with retries, circuit breaker, Prometheus metrics, and structured logs. CI includes live smoke(s) when secrets are set.
-- **B2C (Accounts/Balances)**: Stubbed and feature-flagged behind `FEATURE_FINASTRA_B2C=1` (no live calls until upstream stabilizes).
+- **B2C (Accounts/Balances)**: Live proxy integration behind `FEATURE_FINASTRA_B2C=1`, with optional tenant override on request.
 
 ## Environment Variables
 
@@ -16,7 +16,14 @@
 | `FINASTRA_AUTH_URL`                   | Preferred auth host (scheme+netloc) for token URL     | `https://api.fusionfabric.cloud`          |
 | `FINASTRA_TOKEN_URL`                  | Full token URL override (if set, used directly)       | `https://api.fusionfabric.cloud/login/v1/sandbox/oidc/token` |
 | `FEATURE_FINASTRA_COLLATERALS`        | Feature flag for B2B routes                           | `1`                                        |
-| `FEATURE_FINASTRA_B2C`                | Feature flag for B2C stub routes                      | `0`                                        |
+| `FEATURE_FINASTRA_B2C`                | Feature flag for B2C routes                           | `0`                                        |
+| `FINASTRA_B2C_CLIENT_ID`              | Optional B2C-specific OAuth client id                 | Falls back to `FINASTRA_CLIENT_ID`         |
+| `FINASTRA_B2C_CLIENT_SECRET`          | Optional B2C-specific OAuth client secret             | Falls back to `FINASTRA_CLIENT_SECRET`     |
+| `FINASTRA_B2C_BASE_URL`               | Optional B2C API base URL                             | Falls back to `FINASTRA_BASE_URL`          |
+| `FINASTRA_B2C_SCOPE`                  | Optional B2C OAuth scope                              | Falls back to `FINASTRA_SCOPE`             |
+| `FINASTRA_B2C_TOKEN_URL`              | Optional B2C token URL override                       | Falls back to `FINASTRA_TOKEN_URL`         |
+| `FINASTRA_TENANT_CONFIG_JSON`         | JSON map for per-tenant OAuth/base URL config         | `{}`                                       |
+| `FINASTRA_TENANT_CONFIG_PATH`         | Path to JSON map for per-tenant config                | unset                                      |
 | `FEATURE_FINASTRA_BREAKER`            | Enable circuit breaker                                | `1`/`0`                                    |
 | `FINASTRA_BREAKER_FAIL_THRESHOLD`     | Consecutive failures to open breaker                  | `5` (CI tests use `2`)                     |
 | `FINASTRA_BREAKER_COOLDOWN_SEC`       | Cooldown before half-open                             | `30`                                       |
@@ -56,11 +63,38 @@ curl -s http://localhost:8050/metrics | grep finastra_api_latency_seconds || tru
 - `GET /finastra/b2b/collaterals/{collateral_id}` — get by id.
 
 
-## B2C Stubs
-- `GET /finastra/b2c/accounts` — stubbed list (feature-flagged).
-- `GET /finastra/b2c/balances` — stubbed balances (feature-flagged).
+## B2C Routes
+- `GET /finastra/b2c/accounts` — live list (feature-flagged), supports:
+  - `contexts` (repeatable query param)
+  - `limit` (1-100)
+  - `tenant` (optional tenant override)
+- `GET /finastra/b2c/balances` — live list (feature-flagged), supports:
+  - `accountId` (repeatable; if omitted, account ids are inferred via accounts list)
+  - `contexts` (used for account-id inference)
+  - `limit` (1-100)
+  - `tenant` (optional tenant override)
 
-Enable with `FEATURE_FINASTRA_B2C=1`. No live calls are made until the upstream stabilizes.
+Enable with `FEATURE_FINASTRA_B2C=1`.
+
+### Multi-tenant routing
+
+- Pass `tenant=<name>` on B2B/B2C Finastra endpoints to route request auth/base URL per tenant.
+- Per-tenant env overrides are supported via suffix:
+  - `FINASTRA_CLIENT_ID__TENANT_A`, `FINASTRA_CLIENT_SECRET__TENANT_A`, etc.
+  - Tenant suffix uses uppercase with non-alphanumerics converted to `_`.
+- Or provide a JSON map in `FINASTRA_TENANT_CONFIG_JSON` / `FINASTRA_TENANT_CONFIG_PATH`:
+
+```json
+{
+  "tenant-a": {
+    "base_url": "https://api.fusionfabric.cloud",
+    "client_id": "xxx",
+    "client_secret": "yyy",
+    "scope": "openid",
+    "token_url": "https://api.fusionfabric.cloud/login/v1/tenant-a/oidc/token"
+  }
+}
+```
 
 ## Smokes
 - Live list smoke (already present):
