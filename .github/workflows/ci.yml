@@ -159,6 +159,28 @@ jobs:
           fi
 
   # ────────────────────────────────
+  # Precheck: expose B2C live secret availability
+  # ────────────────────────────────
+  precheck-b2c-secrets:
+    runs-on: ubuntu-latest
+    outputs:
+      has_b2c_live: ${{ steps.flag.outputs.has_b2c_live }}
+    steps:
+      - name: Compute B2C live smoke flag from secrets
+        id: flag
+        env:
+          FINASTRA_B2C_CLIENT_ID: ${{ secrets.FINASTRA_B2C_CLIENT_ID }}
+          FINASTRA_B2C_CLIENT_SECRET: ${{ secrets.FINASTRA_B2C_CLIENT_SECRET }}
+          FINASTRA_B2C_BASE_URL: ${{ secrets.FINASTRA_B2C_BASE_URL }}
+          FINASTRA_TENANT: ${{ secrets.FINASTRA_TENANT }}
+        run: |
+          if [ -n "$FINASTRA_B2C_CLIENT_ID" ] && [ -n "$FINASTRA_B2C_CLIENT_SECRET" ] && [ -n "$FINASTRA_B2C_BASE_URL" ] && [ -n "$FINASTRA_TENANT" ]; then
+            echo "has_b2c_live=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_b2c_live=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  # ────────────────────────────────
   # Finastra Collaterals live smoke
   # ────────────────────────────────
   fin-collaterals-live:
@@ -198,13 +220,11 @@ jobs:
           pytest -q tests/test_finastra_client_live_by_id.py -k test_live_get_collateral_smoke
 
   # ────────────────────────────────
-  # Finastra metrics smoke (optional, artifacts)
+  # Finastra metrics smoke (local app boot + strict enforcement)
   # ────────────────────────────────
   finastra-metrics-smoke:
     name: "Finastra Metrics Smoke"
     runs-on: ubuntu-latest
-    needs: precheck-collateral-secret
-    if: ${{ vars.RUN_FINASTRA_LIVE == '1' && needs.precheck-collateral-secret.outputs.has_test_collateral == 'true' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -214,24 +234,41 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e .
+      - name: Start asset_aggregator API
+        env:
+          AGG_URL: http://127.0.0.1:8050
+        run: |
+          set -e
+          python -m uvicorn asset_aggregator.api:app --host 127.0.0.1 --port 8050 > agg.log 2>&1 &
+          echo $! > agg.pid
+          for i in $(seq 1 30); do
+            if curl -sSf "${AGG_URL}/metrics" >/dev/null; then
+              echo "asset_aggregator is ready"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "asset_aggregator failed to start" >&2
+          exit 1
       - name: Run metrics smoke
         env:
           AGG_URL: http://127.0.0.1:8050
         run: |
-          # If your app needs to be running for /metrics, start it here in background.
-          # Placeholder: assuming /metrics is available in CI container context (adjust as needed).
           python scripts/smoke_finastra_collateral.py --url ${AGG_URL} \
-            --metrics-out metrics.txt --junit-xml reports/results.xml --assert-breaker --skip-api || true
+            --metrics-out metrics.txt --junit-xml reports/results.xml --assert-breaker --skip-api
       - name: Upload artifacts (metrics and JUnit)
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: finastra-metrics
           path: |
             metrics.txt
             reports/results.xml
+            agg.log
           if-no-files-found: warn
           retention-days: 7
       - name: Append summary
+        if: always()
         run: |
           echo "## Finastra Metrics Smoke" >> $GITHUB_STEP_SUMMARY
           if [ -f metrics.txt ]; then
@@ -241,3 +278,45 @@ jobs:
           else
             echo "No metrics.txt artifact found." >> $GITHUB_STEP_SUMMARY
           fi
+      - name: Stop asset_aggregator API
+        if: always()
+        run: |
+          if [ -f agg.pid ]; then
+            kill "$(cat agg.pid)" || true
+          fi
+
+  # ────────────────────────────────
+  # Finastra B2C live smoke (optional)
+  # ────────────────────────────────
+  fin-b2c-live:
+    name: "Finastra B2C Live Smoke"
+    runs-on: ubuntu-latest
+    needs: precheck-b2c-secrets
+    if: ${{ vars.RUN_FINASTRA_B2C_LIVE == '1' && needs.precheck-b2c-secrets.outputs.has_b2c_live == 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          pip install pytest httpx
+      - name: Run B2C live smoke
+        env:
+          FEATURE_FINASTRA_B2C: "1"
+          FINASTRA_TOKEN_STRATEGY: client_credentials
+          FINASTRA_B2C_CLIENT_ID: ${{ secrets.FINASTRA_B2C_CLIENT_ID }}
+          FINASTRA_B2C_CLIENT_SECRET: ${{ secrets.FINASTRA_B2C_CLIENT_SECRET }}
+          FINASTRA_B2C_BASE_URL: ${{ secrets.FINASTRA_B2C_BASE_URL }}
+          FINASTRA_TENANT: ${{ secrets.FINASTRA_TENANT }}
+          FINASTRA_SCOPE: ${{ secrets.FINASTRA_SCOPE }}
+          FINASTRA_TOKEN_URL: ${{ secrets.FINASTRA_TOKEN_URL }}
+          FINASTRA_B2C_SMOKE_CONTEXT: ${{ vars.FINASTRA_B2C_SMOKE_CONTEXT }}
+          FINASTRA_B2C_REQUIRE_200: ${{ vars.FINASTRA_B2C_REQUIRE_200 }}
+          FINASTRA_B2C_TENANT_ALIAS: smoke-tenant-alt
+          FINASTRA_TENANT_CONFIG_JSON: >-
+            {"smoke-tenant-alt":{"base_url":"${{ secrets.FINASTRA_B2C_BASE_URL }}","client_id":"${{ secrets.FINASTRA_B2C_CLIENT_ID }}","client_secret":"${{ secrets.FINASTRA_B2C_CLIENT_SECRET }}","scope":"${{ secrets.FINASTRA_SCOPE }}","token_url":"${{ secrets.FINASTRA_TOKEN_URL }}"}}
+        run: |
+          pytest -q tests/test_finastra_b2c_live.py
