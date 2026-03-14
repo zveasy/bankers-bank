@@ -31,13 +31,11 @@ class AssetSnapshot(SQLModel, table=True):
         default=0.0, sa_column=Column("undrawncreditusd", Float, nullable=True)
     )
 
-    # Allow multiple snapshots for same bank_id & ts during tests; keep non-unique index for query perf.
+    # Upsert relies on uniqueness over (bank_id, ts) for ON CONFLICT.
     __table_args__ = (
+        UniqueConstraint("bank_id", "ts", name="assetsnapshot_bank_ts_uniq"),
         {"extend_existing": True},
     )
-
-
-from sqlalchemy import text
 
 
 def init_db() -> None:

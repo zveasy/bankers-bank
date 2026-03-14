@@ -29,6 +29,9 @@ make init-db                        # initialise local SQLite files
 # run Go unit tests
 make test
 
+# apply DB migrations (asset_aggregator and related schema)
+make db-migrate
+
 # regenerate SDKs when OpenAPI changes
 make gen-sdk
 
