@@ -68,11 +68,13 @@ curl -s http://localhost:8050/metrics | grep finastra_api_latency_seconds || tru
   - `contexts` (repeatable query param)
   - `limit` (1-100)
   - `tenant` (optional tenant override)
+  - Response metadata includes `context_errors` when one or more contexts fail but others succeed.
 - `GET /finastra/b2c/balances` — live list (feature-flagged), supports:
   - `accountId` (repeatable; if omitted, account ids are inferred via accounts list)
   - `contexts` (used for account-id inference)
   - `limit` (1-100)
   - `tenant` (optional tenant override)
+  - Response metadata includes `context_errors` for context-level inference failures.
 
 Enable with `FEATURE_FINASTRA_B2C=1`.
 
@@ -138,6 +140,14 @@ Workflow: `.github/workflows/ci.yml`
 - Live smoke job runs list and by-id tests when secrets exist.
 - `FINASTRA_SCOPE` is passed through from secrets.
  - Optional gate: set repo variable `RUN_FINASTRA_LIVE` to `0` to skip live smokes; any other value (or unset) runs them when secrets are present.
+- Optional B2C live smoke is available via `RUN_FINASTRA_B2C_LIVE=1` and requires:
+  - `FINASTRA_B2C_CLIENT_ID`
+  - `FINASTRA_B2C_CLIENT_SECRET`
+  - `FINASTRA_B2C_BASE_URL`
+  - `FINASTRA_TENANT`
+  - Optional variables:
+    - `FINASTRA_B2C_SMOKE_CONTEXT` (defaults to endpoint/context defaults)
+    - `FINASTRA_B2C_REQUIRE_200=1` to enforce strict HTTP 200 in smoke tests
 
 ### Grafana Panels (PromQL)
 

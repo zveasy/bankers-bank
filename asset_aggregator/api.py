@@ -584,11 +584,35 @@ async def list_finastra_accounts(
     use_contexts = contexts or _b2c_contexts()
     try:
         items: list[dict] = []
+        context_errors: list[dict[str, Any]] = []
         async with _build_accounts_client(cfg) as client:
             for ctx in use_contexts:
-                async for page in client.list_accounts(ctx, limit=limit):
-                    items.extend(acc.raw for acc in page)
-        data = {"items": items, "meta": {"tenant": cfg.tenant, "contexts": use_contexts}}
+                try:
+                    async for page in client.list_accounts(ctx, limit=limit):
+                        items.extend(acc.raw for acc in page)
+                except httpx.HTTPStatusError as e:
+                    context_errors.append(
+                        {
+                            "context": ctx,
+                            "status": e.response.status_code if e.response is not None else 502,
+                            "detail": e.response.text if e.response is not None else str(e),
+                        }
+                    )
+                    continue
+        if not items and context_errors:
+            first = context_errors[0]
+            raise HTTPException(
+                status_code=first["status"],
+                detail={"error": "all_contexts_failed", "context_errors": context_errors},
+            )
+        data = {
+            "items": items,
+            "meta": {
+                "tenant": cfg.tenant,
+                "contexts": use_contexts,
+                "context_errors": context_errors,
+            },
+        }
         logging.getLogger(__name__).info(
             "fin_b2c_accounts_success",
             extra={
@@ -596,6 +620,7 @@ async def list_finastra_accounts(
                 "status": 200,
                 "elapsed_ms": int((time.perf_counter() - t0) * 1000),
                 "tenant": cfg.tenant,
+                "context_errors_count": len(context_errors),
             },
         )
         return data
@@ -645,15 +670,34 @@ async def list_finastra_balances(
     use_account_ids = list(accountId or [])
     use_contexts = contexts or _b2c_contexts()
     try:
+        context_errors: list[dict[str, Any]] = []
         if not use_account_ids:
             async with _build_accounts_client(cfg) as account_client:
                 for ctx in use_contexts:
-                    async for page in account_client.list_accounts(ctx, limit=limit):
-                        use_account_ids.extend(
-                            acc.external_id for acc in page if acc.external_id
+                    try:
+                        async for page in account_client.list_accounts(ctx, limit=limit):
+                            use_account_ids.extend(
+                                acc.external_id for acc in page if acc.external_id
+                            )
+                    except httpx.HTTPStatusError as e:
+                        context_errors.append(
+                            {
+                                "context": ctx,
+                                "status": e.response.status_code if e.response is not None else 502,
+                                "detail": e.response.text if e.response is not None else str(e),
+                            }
                         )
+                        continue
             # de-duplicate while preserving order
             use_account_ids = list(dict.fromkeys(use_account_ids))
+            if not use_account_ids and context_errors:
+                first = context_errors[0]
+                raise HTTPException(
+                    status_code=first["status"],
+                    detail={"error": "all_contexts_failed", "context_errors": context_errors},
+                )
+        else:
+            context_errors = []
 
         items: list[dict] = []
         if use_account_ids:
@@ -667,6 +711,7 @@ async def list_finastra_balances(
                 "tenant": cfg.tenant,
                 "accountIds": use_account_ids,
                 "contexts": use_contexts,
+                "context_errors": context_errors,
             },
         }
         logging.getLogger(__name__).info(
@@ -677,6 +722,7 @@ async def list_finastra_balances(
                 "elapsed_ms": int((time.perf_counter() - t0) * 1000),
                 "tenant": cfg.tenant,
                 "accounts_count": len(use_account_ids),
+                "context_errors_count": len(context_errors),
             },
         )
         return data

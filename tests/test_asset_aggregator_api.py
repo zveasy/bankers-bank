@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sys
 import json
+import httpx
 
 from fastapi.testclient import TestClient
 import pytest
@@ -195,3 +196,91 @@ def test_resolve_tenant_oauth_config_prefers_json_map(client_api, monkeypatch: p
     assert cfg.client_secret == "sec-a"
     assert cfg.scope == "openid accounts"
     assert cfg.token_url == "https://tenant-a.example/token"
+
+
+def test_b2c_accounts_partial_context_failure_returns_success(client_api, monkeypatch: pytest.MonkeyPatch):
+    client, api = client_api
+    monkeypatch.setenv("FEATURE_FINASTRA_B2C", "1")
+
+    class _Acc:
+        def __init__(self, external_id: str, raw: dict):
+            self.external_id = external_id
+            self.raw = raw
+
+    class _FakeAccountsClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        async def list_accounts(self, account_context: str, *, limit: int = 50):
+            if account_context == "BAD":
+                req = httpx.Request("GET", "https://example/accounts")
+                resp = httpx.Response(404, request=req, text="not found")
+                raise httpx.HTTPStatusError("not found", request=req, response=resp)
+            yield [_Acc("acc-ok", {"id": "acc-ok", "ctx": account_context})]
+
+    monkeypatch.setattr(api, "_build_accounts_client", lambda cfg: _FakeAccountsClient())
+    resp = client.get(
+        "/finastra/b2c/accounts?contexts=BAD&contexts=GOOD",
+        headers={"Authorization": "Bearer testtoken"},
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert len(body["items"]) == 1
+    assert body["meta"]["context_errors"][0]["context"] == "BAD"
+
+
+def test_b2c_accounts_all_contexts_fail_returns_error(client_api, monkeypatch: pytest.MonkeyPatch):
+    client, api = client_api
+    monkeypatch.setenv("FEATURE_FINASTRA_B2C", "1")
+
+    class _FakeAccountsClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        async def list_accounts(self, account_context: str, *, limit: int = 50):
+            req = httpx.Request("GET", "https://example/accounts")
+            resp = httpx.Response(404, request=req, text=f"missing:{account_context}")
+            raise httpx.HTTPStatusError("not found", request=req, response=resp)
+            yield  # pragma: no cover
+
+    monkeypatch.setattr(api, "_build_accounts_client", lambda cfg: _FakeAccountsClient())
+    resp = client.get(
+        "/finastra/b2c/accounts?contexts=BAD1&contexts=BAD2",
+        headers={"Authorization": "Bearer testtoken"},
+    )
+    assert resp.status_code == 404
+    detail = resp.json()["detail"]
+    assert detail["error"] == "all_contexts_failed"
+
+
+def test_b2c_balances_all_contexts_fail_returns_error(client_api, monkeypatch: pytest.MonkeyPatch):
+    client, api = client_api
+    monkeypatch.setenv("FEATURE_FINASTRA_B2C", "1")
+
+    class _FakeAccountsClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        async def list_accounts(self, account_context: str, *, limit: int = 50):
+            req = httpx.Request("GET", "https://example/accounts")
+            resp = httpx.Response(404, request=req, text=f"missing:{account_context}")
+            raise httpx.HTTPStatusError("not found", request=req, response=resp)
+            yield  # pragma: no cover
+
+    monkeypatch.setattr(api, "_build_accounts_client", lambda cfg: _FakeAccountsClient())
+    resp = client.get(
+        "/finastra/b2c/balances?contexts=BAD1&contexts=BAD2",
+        headers={"Authorization": "Bearer testtoken"},
+    )
+    assert resp.status_code == 404
+    detail = resp.json()["detail"]
+    assert detail["error"] == "all_contexts_failed"
