@@ -51,6 +51,22 @@ def test_snapshot_accepts_missing_bank_id(client_api, monkeypatch: pytest.Monkey
     assert captured["bank_id"] == "O&L"
 
 
+def test_readyz_is_unauthenticated(client_api, monkeypatch: pytest.MonkeyPatch):
+    client, api = client_api
+
+    class _Sock:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return None
+
+    monkeypatch.setattr(api.socket, "create_connection", lambda *_args, **_kwargs: _Sock())
+    resp = client.get("/readyz")
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["ok"] is True
+
+
 def test_b2b_collaterals_supports_tenant_override(client_api, monkeypatch: pytest.MonkeyPatch):
     client, api = client_api
     monkeypatch.setenv("FEATURE_FINASTRA_COLLATERALS", "1")

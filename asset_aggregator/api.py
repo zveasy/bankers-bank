@@ -65,6 +65,16 @@ class SnapshotRequest(BaseModel):
 
 @app.get("/healthz", response_model=dict)
 async def healthz(_: None = Depends(require_token)):
+    return _kafka_healthz()
+
+
+@app.get("/readyz", response_model=dict)
+async def readyz():
+    # Readiness is used by local/compose healthchecks and should not require JWT/API token.
+    return _kafka_healthz()
+
+
+def _kafka_healthz() -> dict:
     # Parse "host:port" from KAFKA_BOOTSTRAP with safe defaults
     host, sep, port = (KAFKA_BOOTSTRAP or "").partition(":")
     host = host or "redpanda"
