@@ -203,6 +203,11 @@ class _AsyncTokenProviderAdapter:
         return self._provider.fetch()
 
     async def refresh(self) -> str:
+        # Force a new token fetch after 401 instead of returning cached token.
+        if hasattr(self._provider, "_access_token"):
+            setattr(self._provider, "_access_token", None)
+        if hasattr(self._provider, "_expires_at"):
+            setattr(self._provider, "_expires_at", 0.0)
         return self._provider.fetch()
 
 

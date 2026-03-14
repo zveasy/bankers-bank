@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import sys
 import json
 import httpx
@@ -284,3 +285,27 @@ def test_b2c_balances_all_contexts_fail_returns_error(client_api, monkeypatch: p
     assert resp.status_code == 404
     detail = resp.json()["detail"]
     assert detail["error"] == "all_contexts_failed"
+
+
+def test_async_token_adapter_refresh_invalidates_provider_cache(client_api):
+    _, api = client_api
+
+    class _Provider:
+        def __init__(self):
+            self._access_token = "cached-token"
+            self._expires_at = 9999999999.0
+            self.calls = 0
+            self.seen_invalidated = False
+
+        def fetch(self):
+            self.calls += 1
+            self.seen_invalidated = self._access_token is None and self._expires_at == 0.0
+            self._access_token = f"token-{self.calls}"
+            return self._access_token
+
+    provider = _Provider()
+    adapter = api._AsyncTokenProviderAdapter(provider)
+    token = asyncio.run(adapter.refresh())
+    assert token == "token-1"
+    assert provider.calls == 1
+    assert provider.seen_invalidated is True

@@ -139,7 +139,8 @@ Workflow: `.github/workflows/ci.yml`
 - Precheck job surfaces `TEST_COLLATERAL_ID_PRIMARY` presence.
 - Live smoke job runs list and by-id tests when secrets exist.
 - `FINASTRA_SCOPE` is passed through from secrets.
- - Optional gate: set repo variable `RUN_FINASTRA_LIVE` to `0` to skip live smokes; any other value (or unset) runs them when secrets are present.
+- Optional gate: set repo variable `RUN_FINASTRA_LIVE` to `0` to skip live smokes; any other value (or unset) runs them when secrets are present.
+- `Finastra Metrics Smoke` now boots `asset_aggregator` in CI and fails the job on smoke failures (artifacts still upload with `if: always()`).
 - Optional B2C live smoke is available via `RUN_FINASTRA_B2C_LIVE=1` and requires:
   - `FINASTRA_B2C_CLIENT_ID`
   - `FINASTRA_B2C_CLIENT_SECRET`
